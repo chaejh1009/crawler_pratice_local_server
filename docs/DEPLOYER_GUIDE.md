@@ -117,6 +117,9 @@ DATA_SOURCE=memory
 HOST=0.0.0.0
 PORT=4000
 MEMORY_CAR_COUNT=5000
+AUTO_GENERATE=true
+GENERATOR_BATCH_SIZE=28
+GENERATOR_INTERVAL_MS=240000
 
 DEALER_PUBLIC_ID_SECRET=위에서_만든_64자리_난수
 DAILY_API_KEY_SECRET=별도로_만든_64자리_난수
@@ -132,6 +135,8 @@ AREA_PARENT_LOOKUP_CSV_PATH=
 - `HOST=0.0.0.0`은 같은 LAN의 수강생 장치에서 접속할 수 있게 합니다.
 - `PORT`를 바꾸면 수강생에게 전달하는 주소의 포트도 함께 바꿉니다.
 - `MEMORY_CAR_COUNT=5000`은 기본 수업용 차량 수입니다.
+- `AUTO_GENERATE=true`이면 `npm start`가 서버와 주기 생성기를 함께 실행합니다.
+- `GENERATOR_BATCH_SIZE=28`, `GENERATOR_INTERVAL_MS=240000`은 4분마다 28건, 하루 약 10,080건을 추가합니다.
 - CSV를 사용하지 않으면 예제 파일에 있던 네 CSV 경로를 위처럼 비웁니다. `CSV_REQUIRED=false`도 함께 두면 나중에 DB용 seed 설정과 혼동하지 않습니다.
 
 메모리 모드의 `datasetEpoch`는 `memory-v1`으로 고정됩니다. 수업 도중 차량 수, CSV, `DEALER_PUBLIC_ID_SECRET`을 바꾸면 수강생의 기존 체크포인트가 변경 사실을 자동으로 구분하지 못할 수 있습니다. 설정을 바꾸어야 한다면 모든 수강생에게 기존 수집 결과와 체크포인트를 새 namespace로 분리하고 처음부터 다시 수집하도록 공지하세요.
@@ -337,14 +342,18 @@ curl "$AUTODATA_BASE_URL/api/v1/public-key"
 | 경로 | 확인 내용 |
 | --- | --- |
 | `/healthz` | 서버와 메모리 저장소 상태 |
-| `/cars?page=1&page_size=20` | 페이지당 20건의 HTML 게시판과 다음·이전 링크 |
+| `/cars?page=1&page_size=20` | 최초 최대 10,000건 중 페이지당 20건의 공개 HTML 게시판과 다음·이전 링크 |
 | `/changes` | 고정 snapshot 변경 로그 |
 | `/generation-runs` | 메모리 데이터 생성 상태 이벤트 |
 | `/crawl-policy` | 이 서버에만 적용되는 수집 허용 범위 |
 | `/docs#api-explorer` | API 키 입력·다중 페이지 크롤러 |
 | `/learning-guide` | 브라우저용 학습 가이드 |
 
-메모리 모드의 데이터는 서버 시작 시 만들어지는 고정 합성 데이터입니다. 별도 데이터 생성 명령을 실행하지 않습니다.
+메모리 모드는 서버 시작 시 초기 합성 데이터를 만든 뒤, 기본적으로 4분마다 28건을 추가하여 24시간에 약 10,080건을 적재합니다. `/api/v1/stats`의 `carCount`, `/changes`, `/generation-runs`에서 증가를 확인할 수 있습니다. 별도의 `npm run generate:watch`를 함께 실행하지 마세요. 잠시 멈추려면 `.env`의 `AUTO_GENERATE=false`로 바꾸고 서버를 재시작합니다.
+
+메모리 적재는 디스크에 영속화되지 않습니다. 서버를 재시작하면 `MEMORY_CAR_COUNT`의 초기 상태로 돌아가고 주기 생성도 새로 시작하므로, 장기 보존이 필요한 결과는 수강생 수집 DB 또는 네이티브 데이터베이스 모드에 저장해야 합니다.
+
+공개 `/cars`와 `/cars/:id`는 ID 순으로 고정한 최초 최대 10,000건만 노출합니다. 필터·정렬로 이 범위를 우회할 수 없습니다. 전체 차량 JSON은 `/api/v1/public-key`에서 받은 현재 키가 있어야 `/api/v1/cars*`로 조회할 수 있다는 점을 수강생에게 함께 고지하세요.
 
 ### 8.2 요청 제한 조정
 
@@ -376,6 +385,8 @@ HTML_RATE_LIMIT_PER_MINUTE=120
 
 강제 종료나 노트북 전원 차단보다 `Ctrl+C` 정상 종료를 사용하세요. 다시 시작할 때는 같은 프로젝트 폴더에서 `npm start`를 실행합니다. 같은 `DEALER_PUBLIC_ID_SECRET`을 유지하면 공개 딜러 코드도 안정적으로 유지됩니다.
 
+정상 종료는 진행 중인 생성 묶음이 끝나기를 기다린 뒤 저장소를 닫습니다. 메모리 모드에서 생성된 추가 데이터는 재시작 후 복원되지 않는다는 점을 수강생에게 미리 알리세요.
+
 ## 10. 보안 원칙
 
 - 이 서버는 신뢰 가능한 로컬 수업망용입니다. 인터넷에 직접 공개하지 않습니다.
@@ -400,6 +411,7 @@ HTML_RATE_LIMIT_PER_MINUTE=120
 | 같은 Wi-Fi인데 연결할 수 없음 | 공유기의 AP isolation 또는 client isolation, 게스트 Wi-Fi 사용 여부 확인 |
 | `EADDRINUSE`로 시작 실패 | 4000번 포트를 쓰는 기존 서버를 정상 종료하거나 `.env`의 `PORT`를 변경 |
 | `/healthz`의 `source`가 `memory`가 아님 | `.env`의 `DATA_SOURCE=memory` 확인 후 재시작 |
+| 4분이 지나도 데이터가 늘지 않음 | `AUTO_GENERATE=true`, `GENERATOR_BATCH_SIZE=28`, `GENERATOR_INTERVAL_MS=240000`과 서버의 `주기 데이터 생성` 로그 확인 |
 | CSV를 연결했지만 내장 데이터로 시작 | 네 CSV의 절대 경로, 파일 권한, 시작 로그, `npm test`의 CSV 검사 결과 확인 |
 | 응답이 `429 RATE_LIMITED` | 병렬 요청을 줄이고 `Retry-After`만큼 기다린 뒤 재개 |
 | 수집 중 중복 발생 | `id` 또는 `listingNumber`를 안정 키로 사용하여 upsert하고 저장 성공 후 체크포인트 전진 |
@@ -417,6 +429,7 @@ HTML_RATE_LIMIT_PER_MINUTE=120
 - [ ] `.env.example`을 `.env`로 복사하고 접근 권한을 제한했습니다.
 - [ ] `DEALER_PUBLIC_ID_SECRET`과 `DAILY_API_KEY_SECRET`을 서로 다른 난수로 설정했습니다.
 - [ ] `DATA_SOURCE=memory`, `HOST=0.0.0.0`, `PORT`, `MEMORY_CAR_COUNT`를 확인했습니다.
+- [ ] `AUTO_GENERATE=true`, 28건/240000ms와 하루 약 10,080건 계산을 확인했습니다.
 - [ ] 선택 CSV를 사용할 경우 네 절대 경로와 파일 권한을 확인했습니다.
 
 ### 수업 직전
@@ -431,6 +444,7 @@ HTML_RATE_LIMIT_PER_MINUTE=120
 ### 수업 중과 종료
 
 - [ ] 서버 터미널, 강사 PC 전원, LAN 연결을 유지하고 있습니다.
+- [ ] 4분 뒤 `/api/v1/stats`와 `/generation-runs`에서 28건 추가를 확인했습니다.
 - [ ] 과도한 병렬 요청과 반복되는 401·403·429를 관찰합니다.
 - [ ] 수강생 크롤러를 먼저 중지한 뒤 서버를 `Ctrl+C`로 종료합니다.
 - [ ] 선택적 장기 키를 만들었다면 사용이 끝난 키를 `.env`에서 제거했습니다.

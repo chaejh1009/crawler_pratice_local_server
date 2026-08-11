@@ -87,7 +87,7 @@ test("scheduled generation retries the same logical run with a bounded attempt c
   assert.deepEqual(waits, [10, 10]);
 });
 
-test("hourly scheduler keys are deterministic UTC slots", () => {
+test("scheduled generation keys are deterministic UTC slots", () => {
   assert.equal(
     utcSlotRunKey(new Date("2026-08-11T09:59:59.999Z"), 3_600_000),
     "scheduled:3600000:2026-08-11T09:00:00.000Z",

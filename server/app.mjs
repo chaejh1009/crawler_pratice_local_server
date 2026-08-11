@@ -21,6 +21,7 @@ const STATIC_FILES = new Map([
 const SORT_VALUES = new Set(["newest", "price_asc", "price_desc", "mileage_asc", "year_desc"]);
 const STATUS_VALUES = new Set(["AVAILABLE", "RESERVED", "SOLD"]);
 const FUEL_VALUES = new Set(["가솔린", "디젤", "하이브리드", "전기", "LPG"]);
+export const PUBLIC_HTML_CAR_LIMIT = 10_000;
 
 class HttpError extends Error {
   constructor(status, code, message, details, headers = {}) {
@@ -426,8 +427,12 @@ async function handlePage(req, res, url, repository, dailyApiKeyProvider) {
   }
   if (pathname === "/cars") {
     const query = parseCarListQuery(url.searchParams, { defaultPageSize: 20 });
-    const [{ items, total }, brands, locations] = await Promise.all([repository.listCars(query), repository.listBrands(), repository.listLocations()]);
-    sendHtml(res, 200, renderCarListPage({ items, total, query, brands, locations, baseUrl }), req.method);
+    const [{ items, total }, brands, locations] = await Promise.all([
+      repository.listCars({ ...query, datasetLimit: PUBLIC_HTML_CAR_LIMIT }),
+      repository.listBrands(),
+      repository.listLocations(),
+    ]);
+    sendHtml(res, 200, renderCarListPage({ items, total, query, brands, locations, baseUrl, publicResultLimit: PUBLIC_HTML_CAR_LIMIT }), req.method);
     return;
   }
   if (pathname === "/changes") {
@@ -464,7 +469,7 @@ async function handlePage(req, res, url, repository, dailyApiKeyProvider) {
   }
   const carMatch = pathname.match(/^\/cars\/(\d+)$/);
   if (carMatch) {
-    const car = await repository.getCar(Number(carMatch[1]));
+    const car = await repository.getCar(Number(carMatch[1]), { datasetLimit: PUBLIC_HTML_CAR_LIMIT });
     if (!car) throw new HttpError(404, "CAR_NOT_FOUND", "해당 중고차 매물을 찾을 수 없습니다.");
     sendHtml(res, 200, renderCarDetailPage({ car }), req.method);
     return;

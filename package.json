@@ -11,7 +11,7 @@
     "dev": "node --watch server/index.mjs",
     "start": "node server/index.mjs",
     "test": "node --test",
-    "check": "node --check server/index.mjs && node --check server/app.mjs && node --check server/repository.mjs && node --check server/data-generator.mjs && node --check server/sample-data.mjs && node --check server/templates.mjs && node --check server/api-keys.mjs && node --check server/csv-data.mjs && node --check scripts/seed.mjs && node --check scripts/generate-data.mjs && node --check scripts/run-generator.mjs && node --check scripts/create-api-key.mjs && node --check scripts/build-guide-html.mjs && node --check public/app.js",
+    "check": "node --check server/index.mjs && node --check server/app.mjs && node --check server/repository.mjs && node --check server/periodic-memory-generator.mjs && node --check server/data-generator.mjs && node --check server/sample-data.mjs && node --check server/templates.mjs && node --check server/api-keys.mjs && node --check server/csv-data.mjs && node --check scripts/seed.mjs && node --check scripts/generate-data.mjs && node --check scripts/run-generator.mjs && node --check scripts/create-api-key.mjs && node --check scripts/build-guide-html.mjs && node --check public/app.js",
     "db:seed": "node scripts/seed.mjs",
     "generate:once": "node scripts/generate-data.mjs",
     "generate:watch": "node scripts/run-generator.mjs",

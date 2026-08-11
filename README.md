@@ -2,19 +2,19 @@
 
 AutoData Lab은 외부 사이트 대신 수집 권한이 명확한 합성 중고차 데이터를 제공하는 교실용 샌드박스입니다.
 
-- 공개 HTML: `/cars`, `/cars/:id`
-- API 키가 필요한 JSON: `/api/v1/*`
+- 공개 HTML: `/cars`, `/cars/:id` (고정된 최초 최대 10,000건)
+- API 키가 필요한 JSON 데이터: `/api/v1/*` (`/api/v1/public-key`만 공개 예외)
 - 크롤링 가능한 증분·적재 로그: `/changes`, `/generation-runs`
 - 주기 생성 데이터의 MySQL·MongoDB 멱등 이중 적재
 
 수강생에게 전달할 크롤링 시작 주소는 다음 두 개입니다.
 
-- HTML 게시판(페이지당 20건): `http://<배포자-IP>:4000/cars?page=1&page_size=20`
+- HTML 게시판(최대 10,000건, 페이지당 20건): `http://<배포자-IP>:4000/cars?page=1&page_size=20`
 - API 키 입력 크롤러: `http://<배포자-IP>:4000/docs#api-explorer`
 
 HTML 선택자와 페이지네이션, API 키·필터·커서, 고정 high-water mark 증분 수집을 연습한 뒤 직원·업무영역 관계를 분석할 수 있습니다. 차량과 사람 데이터는 모두 교육용이며 실제 차량번호, VIN, 전화번호를 만들지 않습니다. 허용 범위는 `/crawl-policy`에서 확인하며 이 허가는 제3자 사이트에 적용되지 않습니다.
 
-`/cars`와 `/api/v1/cars*`는 MySQL의 현재 차량 projection(초기 seed와 아직 MongoDB 복구 중인 run 포함)입니다. 두 저장소에 검증 완료된 이벤트만 수집해야 할 때는 `SUCCESS` run만 공개하는 `/changes` 또는 `/api/v1/changes`를 사용하고, `/api/v1/stats`의 `pendingChangeCount`를 함께 확인하세요.
+`/cars` 게시판과 그 상세 화면은 인증 없이 수집할 수 있지만, 데이터셋에서 ID 순으로 고정한 최초 최대 10,000건만 노출합니다. 검색·필터·정렬을 바꾸어도 이 공개 집합 밖의 레코드는 조회되지 않습니다. 전체 차량 projection과 커서 수집은 키가 필요한 `/api/v1/cars*`를 사용합니다. 두 저장소에 검증 완료된 이벤트만 수집해야 할 때는 `SUCCESS` run만 공개하는 `/changes` 또는 `/api/v1/changes`를 사용하고, `/api/v1/stats`의 `pendingChangeCount`를 함께 확인하세요.
 
 ## 역할별 사용설명서
 
@@ -118,7 +118,7 @@ npm run db:seed -- --count=250000 --batch-size=1000 --require-csv=true --reset-m
 
 재시드는 source cursor가 1부터 다시 시작하는 **새 데이터셋 수명주기**입니다. 커서 응답의 `meta.dataset_epoch`를 체크포인트와 함께 저장하고 모든 후속 요청에 `dataset_epoch`로 재전송하세요. 재시드 뒤 예전 값을 보내면 서버가 `409 DATASET_EPOCH_CHANGED`를 반환하므로, 그때 새 target namespace와 체크포인트로 처음부터 수집합니다. 수업 중 증분 갱신에는 재시드가 아니라 생성기를 사용하세요.
 
-## 하루 24,000건 주기 생성과 이중 적재
+## 하루 약 10,000건 자동 주기 생성
 
 한 번만 1,000건을 생성해 MySQL의 `vehicle_listings`·`listing_change_log`와 MongoDB의 같은 이름 컬렉션에 멱등 upsert합니다. `generation_runs`는 실행의 최신 상태 projection이고, append-only `generation_run_events`는 `RUNNING → SUCCESS/PARTIAL_FAILED/FAILED` 및 재시도 전이를 크롤링 가능하게 보존합니다.
 
@@ -128,17 +128,23 @@ npm run generate:once -- --count=1000 --run-key=manual-20260810-01
 
 같은 `run-key`와 같은 `count`로 다시 실행하면 건수가 늘지 않고 MongoDB core/status mirror의 누락을 다시 검증·복구합니다. MySQL 성공 뒤 MongoDB가 실패하면 `PARTIAL_FAILED`가 남고, 같은 명령을 재실행하면 빠진 MongoDB 적재를 복구합니다.
 
-스케줄러는 `FAILED`·`PARTIAL_FAILED`·중단된 `RUNNING`을 자동 복구합니다. 이미 `SUCCESS`인 과거 run의 MongoDB mirror가 운영자 삭제 등으로 나중에 유실된 경우에는 해당 `run-key`와 `count`를 수동으로 다시 실행해 재검증합니다.
+MySQL 모드 스케줄러는 `FAILED`·`PARTIAL_FAILED`·중단된 `RUNNING`을 자동 복구합니다. 이미 `SUCCESS`인 과거 run의 MongoDB mirror가 운영자 삭제 등으로 나중에 유실된 경우에는 해당 `run-key`와 `count`를 수동으로 다시 실행해 재검증합니다.
 
 미완료 run이 있으면 생성기는 그 run을 먼저 복구하며 새 sequence 범위 생성을 중단합니다. 생성기 밖에서 같은 테이블에 쓰는 프로그램도 반드시 `autodata-generator-v1` named lock을 획득하고 차량 ID·listing number 및 append-only event 불변식을 지켜야 합니다. 그렇지 않으면 커서가 이미 지난 낮은 ID를 나중에 넣거나 기존 이벤트를 바꿀 수 있습니다.
 
-기본 스케줄러는 시작 즉시 1회, 이후 매시간 1,000건을 생성합니다. 저장소가 정상이고 미완료 run이 없는 steady state 목표는 24시간에 24,000건이며, 장애 시간의 슬롯을 무제한 소급 생성하는 SLA는 아닙니다.
+`npm start`는 서버와 주기 생성기를 함께 시작합니다. 기본 설정은 4분마다 28건으로, 24시간 연속 운영 시 약 10,080건을 추가합니다. 메모리 모드에서는 프로세스 메모리에 적재되어 API·변경 로그에 즉시 보이지만 재시작하면 초기 데이터로 돌아갑니다. MySQL 모드에서는 기존 멱등 생성기가 MySQL·MongoDB에 적재합니다. 장애 시간의 슬롯을 무제한 소급 생성하는 SLA는 아닙니다.
 
-```bash
-npm run generate:watch
+```dotenv
+AUTO_GENERATE=true
+GENERATOR_BATCH_SIZE=28
+GENERATOR_INTERVAL_MS=240000
 ```
 
-수업에서 빠르게 관찰하려면 환경 변수로 간격과 묶음 크기를 줄입니다.
+자동 생성을 잠시 끄려면 `AUTO_GENERATE=false`로 서버를 재시작합니다. 기본 자동 생성이 켜진 상태에서는 별도의 `generate:watch`를 중복 실행하지 않습니다.
+
+독립 생성기 프로세스가 꼭 필요한 운영에서만 서버의 `AUTO_GENERATE=false`를 설정한 뒤 `npm run generate:watch`를 사용합니다.
+
+수업에서 빠르게 관찰하려면 테스트 서버의 환경 변수로 간격과 묶음 크기를 줄입니다.
 
 ```bash
 GENERATOR_BATCH_SIZE=25 GENERATOR_INTERVAL_MS=10000 npm run generate:watch
@@ -202,8 +208,8 @@ IP가 `192.168.0.23`이면 학생은 `http://192.168.0.23:4000`으로 접속합�
 | 메서드 | 경로 | 인증 | 용도 |
 | --- | --- | --- | --- |
 | `GET` | `/` | 공개 | 데이터셋 홈 |
-| `GET` | `/cars` | 공개 | 페이지당 기본 20건의 게시판형 차량 목록 |
-| `GET` | `/cars/:id` | 공개 | 차량 상세 HTML |
+| `GET` | `/cars` | 공개 | 최초 최대 10,000건 중 페이지당 기본 20건의 게시판형 차량 목록 |
+| `GET` | `/cars/:id` | 공개 | 위 10,000건 공개 집합의 차량 상세 HTML |
 | `GET` | `/changes` | 공개 | 고정 snapshot 변경 로그 HTML |
 | `GET` | `/generation-runs` | 공개 | append-only 적재 상태 이벤트 HTML |
 | `GET` | `/crawl-policy` | 공개 | 이 샌드박스의 수집 허용 범위 |

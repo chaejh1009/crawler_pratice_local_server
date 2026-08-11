@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { EventEmitter } from "node:events";
 import { networkInterfaces } from "node:os";
 import { loadEnvFile } from "node:process";
 
@@ -11,6 +12,12 @@ import {
   ensureApiKeysTable,
 } from "./api-keys.mjs";
 import { createRepositoryFromEnv, mysqlConnectionOptions } from "./repository.mjs";
+import {
+  DEFAULT_AUTO_GENERATION_BATCH_SIZE,
+  DEFAULT_AUTO_GENERATION_INTERVAL_MS,
+  startPeriodicMemoryGenerator,
+} from "./periodic-memory-generator.mjs";
+import { runScheduler } from "../scripts/run-generator.mjs";
 
 try {
   loadEnvFile(".env");
@@ -27,6 +34,13 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
 function positiveInteger(value, fallback, maximum = Number.MAX_SAFE_INTEGER) {
   const number = Number(value);
   return Number.isSafeInteger(number) && number > 0 ? Math.min(number, maximum) : fallback;
+}
+
+function booleanSetting(value, fallback = true) {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (["true", "1", "yes", "on"].includes(String(value).toLowerCase())) return true;
+  if (["false", "0", "no", "off"].includes(String(value).toLowerCase())) return false;
+  throw new Error("AUTO_GENERATE는 true 또는 false여야 합니다.");
 }
 
 const repository = await createRepositoryFromEnv(process.env);
@@ -68,6 +82,40 @@ const server = createServer(createApp({
   },
 }));
 
+function startGenerationRuntime() {
+  if (!booleanSetting(process.env.AUTO_GENERATE, true)) {
+    console.log("  주기 데이터 생성: 비활성화 (AUTO_GENERATE=false)\n");
+    return { close: async () => {} };
+  }
+  const batchSize = positiveInteger(process.env.GENERATOR_BATCH_SIZE, DEFAULT_AUTO_GENERATION_BATCH_SIZE, 10_000);
+  const intervalMs = positiveInteger(process.env.GENERATOR_INTERVAL_MS, DEFAULT_AUTO_GENERATION_INTERVAL_MS, 7 * 24 * 60 * 60 * 1_000);
+
+  if (startupHealth.source !== "mysql") {
+    const runtime = startPeriodicMemoryGenerator({ repository, batchSize, intervalMs });
+    console.log(`  주기 데이터 생성: ${runtime.batchSize}건 / ${Math.round(runtime.intervalMs / 1000)}초 (하루 약 ${runtime.expectedPerDay.toLocaleString("ko-KR")}건, 재시작 시 초기화)\n`);
+    return runtime;
+  }
+
+  const signals = new EventEmitter();
+  signals.exit = () => {};
+  const schedulerTask = runScheduler({
+    env: { ...process.env, GENERATOR_BATCH_SIZE: String(batchSize), GENERATOR_INTERVAL_MS: String(intervalMs) },
+    signals,
+    wait: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
+  }).catch((error) => {
+    console.error(`주기 생성기 종료: ${error instanceof Error ? error.message : String(error)}`);
+  });
+  console.log(`  주기 데이터 생성: ${batchSize}건 / ${Math.round(intervalMs / 1000)}초 (하루 약 ${Math.round((86_400_000 / intervalMs) * batchSize).toLocaleString("ko-KR")}건, MySQL·MongoDB)\n`);
+  return {
+    async close() {
+      signals.emit("SIGTERM");
+      await schedulerTask;
+    },
+  };
+}
+
+let generationRuntime = { close: async () => {} };
+
 function isPrivateIpv4(value) {
   const octets = value.split(".").map(Number);
   return octets.length === 4 && octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255)
@@ -101,6 +149,7 @@ server.listen(port, host, () => {
   for (const address of lanAddresses()) console.log(`  같은 Wi-Fi 후보: ${address}`);
   console.log(`  데이터 소스: ${startupHealth.source}\n`);
   console.log("  공개 일일 API 키: /api/v1/public-key (한국시간 자정 자동 교체)\n");
+  generationRuntime = startGenerationRuntime();
 });
 
 let shuttingDown = false;
@@ -109,10 +158,12 @@ async function shutdown(signal) {
   shuttingDown = true;
   console.log(`\n${signal} 신호를 받아 서버를 종료합니다.`);
   server.close(async () => {
+    await generationRuntime.close();
     await Promise.allSettled([repository.close(), apiKeyRuntime.close()]);
     process.exit(0);
   });
-  setTimeout(() => process.exit(1), 5_000).unref();
+  const shutdownTimeoutMs = positiveInteger(process.env.GENERATOR_SHUTDOWN_TIMEOUT_MS, 60_000, 10 * 60_000) + 5_000;
+  setTimeout(() => process.exit(1), shutdownTimeoutMs).unref();
 }
 
 process.on("SIGINT", () => shutdown("SIGINT"));

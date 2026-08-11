@@ -23,7 +23,7 @@ API 응답의 기본 `Content-Type`은 `application/json; charset=utf-8`입니�
 
 `HEAD`는 대응하는 `GET`과 같은 상태 및 헤더를 반환하지만 응답 본문은 보내지 않습니다. 정식 API는 `GET`, `HEAD`, `OPTIONS`만 지원합니다.
 
-HTML 경로인 `/`, `/cars`, `/cars/:id`, `/changes`, `/generation-runs`, `/crawl-policy`, `/docs`, `/learning-guide`, 공개 키 경로 `/api/v1/public-key`와 정적 파일은 API 키 없이 접근할 수 있습니다. 따라서 API 키는 수업에서 정식 JSON API 인증을 연습하기 위한 장치이며, 공개 HTML에 표시되는 데이터 자체를 비밀로 만드는 수단은 아닙니다.
+HTML 경로인 `/`, `/cars`, `/cars/:id`, `/changes`, `/generation-runs`, `/crawl-policy`, `/docs`, `/learning-guide`, 공개 키 경로 `/api/v1/public-key`와 정적 파일은 API 키 없이 접근할 수 있습니다. 다만 `/cars` 게시판과 그 상세 화면은 데이터셋에서 ID 순으로 고정한 최초 최대 10,000건만 노출하며, 필터·정렬로 이 집합을 벗어날 수 없습니다. 전체 차량은 키가 필요한 JSON API에서만 순회할 수 있습니다.
 
 ## API 키 인증
 
@@ -216,6 +216,8 @@ WWW-Authenticate: Bearer realm="AutoData Lab API"
 ```http
 GET /api/v1/cars
 ```
+
+이 JSON 경로는 유효한 API 키가 필요하며 HTML 게시판의 10,000건 공개 제한을 적용하지 않습니다. 따라서 전체 데이터 수집은 페이지 응답의 `links.next` 또는 아래 커서 API를 사용해야 합니다. `/api/v1/public-key`는 현재 일일 키를 얻기 위한 유일한 공개 API 예외입니다.
 
 ### 쿼리 매개변수
 

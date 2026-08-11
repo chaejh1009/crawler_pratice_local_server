@@ -150,6 +150,8 @@ sources:
 GET /cars?page=1&page_size=20
 ```
 
+이 게시판과 연결된 상세 화면은 토큰 없이 조회할 수 있지만, ID 순으로 고정한 최초 최대 10,000건만 HTML에 공개한다. 검색·필터·정렬은 이 공개 집합 안에서만 동작한다. 전체 데이터는 현재 일일 키를 헤더에 넣은 `/api/v1/cars` 또는 `/api/v1/cars/cursor`로 수집한다.
+
 안정 selector 계약은 다음과 같다.
 
 | 의미 | selector 또는 attribute |
@@ -314,19 +316,21 @@ npm run generate:watch
 저장소가 정상이고 미완료 run이 없는 steady state 목표는 다음과 같다. 장애 시간의 모든 slot을 무제한 소급 생성하는 SLA는 아니다.
 
 ```text
-1회 생성량: 1,000건
-실행 간격: 1시간
-하루 실행 수: 24회
-하루 생성량: 1,000 × 24 = 24,000건
+1회 생성량: 28건
+실행 간격: 4분
+하루 실행 수: 360회
+하루 생성량: 28 × 360 = 10,080건
 ```
 
 기본 간격은 `.env`의 다음 값으로 표현한다.
 
 ```dotenv
-GENERATOR_INTERVAL_MS=3600000
+AUTO_GENERATE=true
+GENERATOR_BATCH_SIZE=28
+GENERATOR_INTERVAL_MS=240000
 ```
 
-수업 시간에 여러 시간을 기다리지 않도록 교사는 작은 count와 짧은 interval을 별도 test profile에서 사용할 수 있다. 검증이 끝나면 기본값으로 되돌리고, 짧은 interval로 여러 generator를 동시에 실행하지 않는다.
+`npm start`가 생성기를 함께 시작하므로 기본 운영에서는 `generate:watch`를 별도로 실행하지 않는다. 수업 시간에 4분을 기다리지 않으려면 교사는 작은 count와 짧은 interval을 별도 test profile에서 사용할 수 있다. 검증이 끝나면 기본값으로 되돌리고, 짧은 interval로 여러 generator를 동시에 실행하지 않는다.
 
 ```bash
 npm run generate:once -- --count=20
@@ -453,7 +457,7 @@ JSON API는 첫 응답의 `meta.until_id`와 `meta.dataset_epoch`를 checkpoint�
 ### 5.6 Day 23 종료 증거
 
 - `generate:once` 한 번의 `run_key`, requested/MySQL/Mongo count
-- 정상 steady state 기준 1,000건/시간과 24,000건/일 계산
+- 정상 steady state 기준 28건/4분과 약 10,080건/일 계산
 - `generate:watch`의 next run과 정상 중지 기록
 - 같은 `run_key` 재실행 뒤 count 불변
 - controlled `PARTIAL_FAILED → SUCCESS` 또는 그에 준하는 fixture 증거
@@ -538,7 +542,7 @@ npm test
 | `src/collectors/` | `/cars`, `/changes`, `/api/v1/cars`, `/api/v1/changes` adapter |
 | `src/repositories/` | stable key upsert와 checkpoint transaction 경계 |
 | `output/<run_id>/quality-report.json` | candidate·invalid·duplicate·valid, missing·extra, high-water mark |
-| `evidence/scheduler-run.md` | 1,000건/시간 설정, scheduled run ID, 중지 증거 |
+| `evidence/scheduler-run.md` | 28건/4분 설정, 하루 약 10,080건 계산, scheduled run ID, 중지 증거 |
 | `evidence/retry-idempotency.md` | 같은 key 재실행과 partial retry의 before/after count |
 
 샌드박스는 외부 live 성공 증거 또는 AWS topology 증거를 대신하지 않는다. 대신 Day 21~23의 공통 학습 목표인 source 계약, HTML/API collector, 예외 처리, MySQL·MongoDB 적재, 멱등성, 구조화 로그, 스케줄 실행을 외부 사이트 상태와 분리해 반복 가능하게 만든다.

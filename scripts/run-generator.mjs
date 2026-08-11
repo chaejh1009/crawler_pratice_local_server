@@ -3,14 +3,14 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  DEFAULT_GENERATION_COUNT,
   MAX_GENERATION_COUNT,
   generateDataBatch,
   listRecoverableGenerationRuns,
   safeErrorMessage,
 } from "../server/data-generator.mjs";
 
-export const DEFAULT_GENERATION_INTERVAL_MS = 3_600_000;
+export const DEFAULT_SCHEDULED_GENERATION_COUNT = 28;
+export const DEFAULT_GENERATION_INTERVAL_MS = 4 * 60_000;
 
 function readArgument(argv, name) {
   const inlinePrefix = `--${name}=`;
@@ -51,7 +51,7 @@ function nextSlotDelay(nowMs, intervalMs) {
 }
 
 function printHelp(logger) {
-  logger.log("사용법: node scripts/run-generator.mjs [--count 1000] [--interval-ms 3600000]");
+  logger.log("사용법: node scripts/run-generator.mjs [--count 28] [--interval-ms 240000]");
   logger.log("시작 즉시 미완료 run을 재조정한 뒤 현재 UTC slot을 실행하고, 이후 UTC 경계마다 반복합니다.");
 }
 
@@ -102,7 +102,7 @@ export async function runScheduler({
 
   const count = positiveInteger(
     readArgument(argv, "count") ?? env.GENERATOR_COUNT ?? env.GENERATOR_BATCH_SIZE,
-    DEFAULT_GENERATION_COUNT,
+    DEFAULT_SCHEDULED_GENERATION_COUNT,
     "count",
     MAX_GENERATION_COUNT,
   );

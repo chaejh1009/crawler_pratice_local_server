@@ -5,6 +5,7 @@ import { after, before, test } from "node:test";
 import { createApp, createFixedWindowRateLimiter } from "../server/app.mjs";
 import { createApiKeyService, createDailyApiKeyProvider, createMemoryApiKeyStore, generateApiKey } from "../server/api-keys.mjs";
 import { createMemoryRepository } from "../server/repository.mjs";
+import { expectedDailyGeneration } from "../server/periodic-memory-generator.mjs";
 
 const silentLogger = { debug() {}, info() {}, warn() {}, error() {} };
 const generatedKey = generateApiKey({
@@ -97,12 +98,70 @@ test("HTML car board defaults to 20 rows and publishes a crawl start URL", async
   assert.equal(response.status, 200);
   const html = await readHtml(response);
   assert.match(html, /class="board-list"/);
+  assert.match(html, /data-public-result-limit="10000"/);
+  assert.match(html, /토큰 없이 공개된 최대 10,000건/);
   assert.match(html, /HTML CRAWL START URL/);
   assert.match(html, /\/cars\?page=1&amp;page_size=20/);
   const rows = html.match(/<article\b[^>]*\bboard-list__row\b[^>]*\bdata-car-id="[^"]+"[^>]*>/gi) ?? [];
   assert.equal(rows.length, 20);
   assert.match(html, /<strong>1<\/strong> \/ 12 페이지/);
   assert.match(html, /rel="next"[^>]+page=2[^>]+page_size=20/);
+});
+
+test("public HTML repository scope is fixed to the first 10,000 cars while keyed API scope stays complete", async () => {
+  const largeRepository = createMemoryRepository({ count: 10_025 });
+  try {
+    const publicLastPage = await largeRepository.listCars({
+      page: 100,
+      pageSize: 100,
+      sort: "newest",
+      datasetLimit: 10_000,
+    });
+    assert.equal(publicLastPage.total, 10_000);
+    assert.equal(publicLastPage.items.length, 100);
+    assert.ok(publicLastPage.items.every((car) => car.id <= 10_000));
+
+    const publicOverflow = await largeRepository.listCars({
+      page: 101,
+      pageSize: 100,
+      datasetLimit: 10_000,
+    });
+    assert.equal(publicOverflow.total, 10_000);
+    assert.equal(publicOverflow.items.length, 0);
+    assert.equal(await largeRepository.getCar(10_001, { datasetLimit: 10_000 }), null);
+
+    const authenticatedScope = await largeRepository.listCars({ page: 1, pageSize: 100 });
+    assert.equal(authenticatedScope.total, 10_025);
+    assert.ok(await largeRepository.getCar(10_001));
+
+    const before = await largeRepository.getStats();
+    const generated = await largeRepository.appendSyntheticCars({
+      count: 28,
+      runKey: "test:scheduled:2026-08-11T14:00:00.000Z",
+      now: new Date("2026-08-11T14:00:00.000Z"),
+    });
+    assert.equal(generated.insertedCount, 28);
+    const afterGeneration = await largeRepository.getStats();
+    assert.equal(afterGeneration.carCount, before.carCount + 28);
+    assert.equal(afterGeneration.changeCount, before.changeCount + 28);
+    assert.equal(afterGeneration.generationRunCount, before.generationRunCount + 1);
+    assert.equal(afterGeneration.generationRunEventCount, before.generationRunEventCount + 2);
+    assert.equal(expectedDailyGeneration(), 10_080);
+
+    const repeated = await largeRepository.appendSyntheticCars({
+      count: 28,
+      runKey: "test:scheduled:2026-08-11T14:00:00.000Z",
+      now: new Date("2026-08-11T14:00:00.000Z"),
+    });
+    assert.equal(repeated.skipped, true);
+    assert.equal((await largeRepository.getStats()).carCount, afterGeneration.carCount);
+
+    const stillPubliclyLimited = await largeRepository.listCars({ page: 1, pageSize: 100, datasetLimit: 10_000 });
+    assert.equal(stillPubliclyLimited.total, 10_000);
+    assert.equal(await largeRepository.getCar(10_026, { datasetLimit: 10_000 }), null);
+  } finally {
+    await largeRepository.close();
+  }
 });
 
 test("API documentation exposes a keyed multi-page crawler", async () => {

@@ -4,8 +4,10 @@ import {
   DEFAULT_MEMORY_CAR_COUNT,
   SAMPLE_MANUFACTURERS,
   SAMPLE_LOCATIONS,
+  createCarSeedContext,
   createFallbackBusinessAreas,
   createFallbackEmployees,
+  createSampleCar,
   createSampleCars,
   normalizeBusinessAreaRecord,
   normalizeEmployeeRecord,
@@ -124,6 +126,12 @@ function normalizeListOptions(options = {}) {
     accidentFree: nullableBoolean(options.accidentFree),
     sort: SORT_ALIASES[String(options.sort ?? "newest").toLowerCase()] ?? "newest",
   };
+}
+
+function normalizeDatasetLimit(value) {
+  if (value === undefined || value === null) return null;
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : null;
 }
 
 function maskName(value) {
@@ -344,10 +352,11 @@ export function createMemoryRepository({
   const normalizedEmployees = employees.map(normalizeEmployeeRecord).filter(Boolean);
   const normalizedAreas = (businessAreas ?? createFallbackBusinessAreas(undefined, normalizedEmployees))
     .map(normalizeBusinessAreaRecord).filter(Boolean);
-  const rawCars = createSampleCars(positiveInteger(count, DEFAULT_MEMORY_CAR_COUNT), {
+  const carSeedContext = createCarSeedContext({
     employees: normalizedEmployees,
     businessAreas: normalizedAreas,
   });
+  const rawCars = createSampleCars(positiveInteger(count, DEFAULT_MEMORY_CAR_COUNT), carSeedContext);
   const cars = rawCars.map((car) => mapSampleCar(car, normalizedDealerSecret));
   const carById = new Map(cars.map((car) => [car.id, car]));
   const employeeByNo = new Map(normalizedEmployees.map((employee) => [employee.employeeNo, employee]));
@@ -376,12 +385,14 @@ export function createMemoryRepository({
     startedAt: cars.at(0)?.createdAt ?? new Date(0).toISOString(),
     finishedAt: cars.at(-1)?.updatedAt ?? new Date(0).toISOString(),
   });
-  const generationRunEvents = Object.freeze([
+  const generationRunEvents = [
     Object.freeze({
       ...memoryRun,
       id: 1,
       eventId: 1,
       runId: memoryRun.id,
+      storage: "memory",
+      memoryCount: 0,
       status: "RUNNING",
       mysqlCount: 0,
       mongoCount: 0,
@@ -394,9 +405,11 @@ export function createMemoryRepository({
       id: 2,
       eventId: 2,
       runId: memoryRun.id,
+      storage: "memory",
+      memoryCount: cars.length,
       occurredAt: memoryRun.finishedAt,
     }),
-  ]);
+  ];
   const changes = cars.map((car, index) => {
     const serialized = JSON.stringify(car);
     return Object.freeze({
@@ -413,6 +426,8 @@ export function createMemoryRepository({
       payload: car,
     });
   });
+  const completedRunKeys = new Map([[memoryRun.runKey, memoryRun]]);
+  let generationRunCount = 1;
 
   function assertOpen() {
     if (closed) throw new Error("The memory repository is closed.");
@@ -439,7 +454,7 @@ export function createMemoryRepository({
         businessAreaCount: normalizedAreas.length,
         changeCount: changes.length,
         pendingChangeCount: 0,
-        generationRunCount: 1,
+        generationRunCount,
         incompleteGenerationRunCount: 0,
         generationRunEventCount: generationRunEvents.length,
         latestGenerationRunEventId: generationRunEvents.at(-1)?.eventId ?? 0,
@@ -495,7 +510,9 @@ export function createMemoryRepository({
     async listCars(options = {}) {
       assertOpen();
       const query = normalizeListOptions(options);
-      const filtered = cars.filter((car) => carMatches(car, query)).sort(compareCars(query.sort));
+      const datasetLimit = normalizeDatasetLimit(options.datasetLimit);
+      const publicDataset = datasetLimit === null ? cars : cars.slice(0, datasetLimit);
+      const filtered = publicDataset.filter((car) => carMatches(car, query)).sort(compareCars(query.sort));
       const offset = (query.page - 1) * query.pageSize;
       return { items: filtered.slice(offset, offset + query.pageSize), total: filtered.length };
     },
@@ -545,10 +562,99 @@ export function createMemoryRepository({
       const hasMore = rows.length > normalizedLimit;
       return { items: hasMore ? rows.slice(0, normalizedLimit) : rows, hasMore };
     },
-    async getCar(id) {
+    async getCar(id, options = {}) {
       assertOpen();
       const normalized = Number(id);
-      return Number.isSafeInteger(normalized) && normalized > 0 ? carById.get(normalized) ?? null : null;
+      if (!Number.isSafeInteger(normalized) || normalized <= 0) return null;
+      const datasetLimit = normalizeDatasetLimit(options.datasetLimit);
+      if (datasetLimit !== null && !cars.slice(0, datasetLimit).some((car) => car.id === normalized)) return null;
+      return carById.get(normalized) ?? null;
+    },
+    async appendSyntheticCars({ count: requestedCount = 28, runKey, now = new Date() } = {}) {
+      assertOpen();
+      const batchCount = positiveInteger(requestedCount, 28, 10_000);
+      const generatedAt = now instanceof Date ? now : new Date(now);
+      if (Number.isNaN(generatedAt.getTime())) throw new TypeError("생성 시각이 올바르지 않습니다.");
+      const normalizedRunKey = String(runKey ?? `memory:${generatedAt.toISOString()}`).trim();
+      if (!normalizedRunKey) throw new TypeError("runKey는 비어 있을 수 없습니다.");
+      const completed = completedRunKeys.get(normalizedRunKey);
+      if (completed) {
+        if (completed.requestedCount !== batchCount) throw new Error("같은 runKey를 다른 count로 재사용할 수 없습니다.");
+        return { skipped: true, runKey: normalizedRunKey, insertedCount: 0, carCount: cars.length };
+      }
+
+      const runId = generationRunCount + 1;
+      const sequenceStart = cars.length + 1;
+      const sequenceEnd = cars.length + batchCount;
+      const startedAt = generatedAt.toISOString();
+      generationRunEvents.push(Object.freeze({
+        id: generationRunEvents.length + 1,
+        eventId: generationRunEvents.length + 1,
+        runId,
+        runKey: normalizedRunKey,
+        storage: "memory",
+        memoryCount: 0,
+        status: "RUNNING",
+        requestedCount: batchCount,
+        sequenceStart,
+        sequenceEnd,
+        mysqlCount: 0,
+        mongoCount: 0,
+        errorMessage: null,
+        startedAt,
+        finishedAt: null,
+        occurredAt: startedAt,
+      }));
+
+      for (let offset = 0; offset < batchCount; offset += 1) {
+        const timestamp = new Date(generatedAt.getTime() + offset).toISOString();
+        const rawCar = createSampleCar(cars.length, carSeedContext);
+        const car = mapSampleCar({ ...rawCar, createdAt: timestamp, updatedAt: timestamp }, normalizedDealerSecret);
+        cars.push(car);
+        carById.set(car.id, car);
+        brandCounts.set(car.brand.id, (brandCounts.get(car.brand.id) ?? 0) + 1);
+        locationCounts.set(car.location.id, (locationCounts.get(car.location.id) ?? 0) + 1);
+        areaCounts.set(car.businessArea.id, (areaCounts.get(car.businessArea.id) ?? 0) + 1);
+        if (car.status === "AVAILABLE") availableCount += 1;
+        const serialized = JSON.stringify(car);
+        changes.push(Object.freeze({
+          seq: changes.length + 1,
+          eventId: sha256(`${normalizedRunKey}:${car.listingNumber}`),
+          runId,
+          runKey: normalizedRunKey,
+          operation: "UPSERT",
+          listingId: car.id,
+          listingNumber: car.listingNumber,
+          entityVersion: 1,
+          occurredAt: car.updatedAt,
+          sourceChecksum: sha256(serialized),
+          payload: car,
+        }));
+      }
+
+      const finishedAt = new Date(generatedAt.getTime() + Math.max(1, batchCount)).toISOString();
+      const completedRun = Object.freeze({
+        id: generationRunEvents.length + 1,
+        eventId: generationRunEvents.length + 1,
+        runId,
+        runKey: normalizedRunKey,
+        storage: "memory",
+        memoryCount: batchCount,
+        status: "SUCCESS",
+        requestedCount: batchCount,
+        sequenceStart,
+        sequenceEnd,
+        mysqlCount: 0,
+        mongoCount: 0,
+        errorMessage: null,
+        startedAt,
+        finishedAt,
+        occurredAt: finishedAt,
+      });
+      generationRunEvents.push(completedRun);
+      completedRunKeys.set(normalizedRunKey, completedRun);
+      generationRunCount = runId;
+      return { skipped: false, runKey: normalizedRunKey, insertedCount: batchCount, carCount: cars.length };
     },
     async close() { closed = true; },
   };
@@ -679,8 +785,15 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
     async listCars(options = {}) {
       assertOpen();
       const query = normalizeListOptions(options);
+      const datasetLimit = normalizeDatasetLimit(options.datasetLimit);
       const conditions = [];
       const parameters = [];
+      if (datasetLimit !== null) {
+        conditions.push(`l.id IN (
+          SELECT public_vehicle_listing.id
+          FROM (SELECT id FROM vehicle_listings ORDER BY id ASC LIMIT ${datasetLimit}) AS public_vehicle_listing
+        )`);
+      }
       const fullText = toFullTextQuery(query.q);
       if (fullText) { conditions.push("MATCH(l.title, l.description) AGAINST (? IN BOOLEAN MODE)"); parameters.push(fullText); }
       else if (query.q) conditions.push("0 = 1");
@@ -779,11 +892,16 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
       const hasMore = rows.length > normalizedLimit;
       return { items: (hasMore ? rows.slice(0, normalizedLimit) : rows).map(mapMysqlGenerationRunEvent), hasMore };
     },
-    async getCar(id) {
+    async getCar(id, options = {}) {
       assertOpen();
       const normalized = Number(id);
       if (!Number.isSafeInteger(normalized) || normalized <= 0) return null;
-      const [rows] = await pool.execute(`${CAR_SELECT} WHERE l.id = ? LIMIT 1`, [normalized]);
+      const datasetLimit = normalizeDatasetLimit(options.datasetLimit);
+      const publicBoundary = datasetLimit === null ? "" : ` AND l.id IN (
+        SELECT public_vehicle_listing.id
+        FROM (SELECT id FROM vehicle_listings ORDER BY id ASC LIMIT ${datasetLimit}) AS public_vehicle_listing
+      )`;
+      const [rows] = await pool.execute(`${CAR_SELECT} WHERE l.id = ?${publicBoundary} LIMIT 1`, [normalized]);
       return rows.length ? mapMysqlCar(rows[0], normalizedDealerSecret) : null;
     },
     async close() { if (!closed) { closed = true; await pool.end(); } },
