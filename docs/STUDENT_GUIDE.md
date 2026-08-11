@@ -89,7 +89,7 @@ curl.exe "${env:AUTODATA_BASE_URL}/robots.txt"
 
 ### 브랜드 FAQ
 
-`/faqs`는 현대, 기아, 제네시스, 쉐보레, 르노코리아, KG모빌리티, BMW, 메르세데스-벤츠의 공식 홈페이지 자료를 교육용으로 재작성한 FAQ입니다. `?brand=bmw`처럼 브랜드를 선택할 수 있습니다. 각 `article.faq-item[data-faq-id]`에는 `data-brand`, `data-category`, `data-source-url`, `data-reviewed-at`이 있고 질문·답변·출처는 각각 `data-field="question"`, `answer`, `source`로 표시됩니다. 공식 원문이 바뀔 수 있으므로 출처 URL과 확인일도 함께 저장하세요.
+`/faqs`는 현대, 기아, 제네시스, 쉐보레, 르노코리아, KG모빌리티, BMW, 메르세데스-벤츠의 공식 홈페이지 자료를 교육용으로 재작성한 FAQ입니다. 전체 페이지에서도 `[data-faq-brand-group]` 섹션으로 브랜드가 구분되며, `?brand=bmw`처럼 한 브랜드만 선택할 수도 있습니다. 각 `article.faq-item[data-faq-id]`에는 `data-brand`, `data-category`, `data-source-url`, `data-reviewed-at`이 있고 질문·답변·출처는 각각 `data-field="question"`, `answer`, `source`로 표시됩니다. 공식 원문이 바뀔 수 있으므로 출처 URL과 확인일도 함께 저장하세요.
 
 ### API 문서와 탐색기
 

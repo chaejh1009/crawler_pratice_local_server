@@ -2454,7 +2454,32 @@ td code {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin: 0;
+}
+
+.faq-brand-picker {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.55fr) minmax(0, 1.45fr);
+  align-items: center;
+  gap: 30px;
   margin: 26px 0 38px;
+  padding: 25px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.faq-brand-picker h2 {
+  margin: 3px 0 7px;
+  font-size: 23px;
+}
+
+.faq-brand-picker > div > p:last-child {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .faq-brand-link {
@@ -2487,6 +2512,60 @@ td code {
 .faq-brand-link:hover span,
 .faq-brand-link.is-current span {
   color: var(--lime);
+}
+
+.faq-groups {
+  display: grid;
+  gap: 54px;
+}
+
+.faq-brand-group {
+  scroll-margin-top: 100px;
+}
+
+.faq-brand-group__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 17px;
+  padding: 0 2px 16px;
+  border-bottom: 2px solid var(--forest);
+}
+
+.faq-brand-group__header h2 {
+  margin: 4px 0 5px;
+  font-size: clamp(25px, 3vw, 34px);
+  letter-spacing: -0.045em;
+}
+
+.faq-brand-group__header h2 strong {
+  color: var(--forest);
+}
+
+.faq-brand-group__header > div > p:last-child {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.faq-brand-group__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.faq-brand-group__actions > a:first-child {
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.faq-brand-group__actions .button {
+  min-height: 38px;
+  padding: 9px 13px;
+  font-size: 11px;
 }
 
 .faq-list {
@@ -2636,6 +2715,8 @@ td code {
   .crawl-address code { overflow-x: auto; text-overflow: clip; }
   .daily-key-current { align-items: stretch; flex-direction: column; }
   .daily-key-meta { grid-template-columns: 1fr; }
+  .faq-brand-picker { grid-template-columns: 1fr; }
+  .faq-brand-group__header { align-items: flex-start; flex-direction: column; }
   .faq-list { grid-template-columns: 1fr; }
 }
 
@@ -2643,6 +2724,7 @@ td code {
   .stat-grid, .car-filter-panel { grid-template-columns: 1fr; }
   .car-filter-panel .field--search, .car-filter-panel .filter-panel__submit { grid-column: auto; }
   .faq-notice { grid-template-columns: 1fr; }
+  .faq-brand-group__actions { align-items: flex-start; flex-direction: column; }
   .faq-item__header, .faq-item__source { align-items: flex-start; flex-direction: column; }
   .faq-item__source a { text-align: left; }
 }

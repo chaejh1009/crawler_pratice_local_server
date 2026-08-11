@@ -197,7 +197,7 @@ export function renderFaqPage({ brands = [], items = [], allItems = items, selec
     `<a class="faq-brand-link${selected ? "" : " is-current"}" href="/faqs"${selected ? "" : ' aria-current="page"'} data-faq-brand-filter="all">전체 <span>${formatNumber(allItems.length)}</span></a>`,
     ...brands.map((brand) => `<a class="faq-brand-link${selectedBrand === brand.slug ? " is-current" : ""}" href="/faqs?brand=${encodeURIComponent(brand.slug)}"${selectedBrand === brand.slug ? ' aria-current="page"' : ""} data-faq-brand-filter="${escapeHtml(brand.slug)}">${escapeHtml(brand.name)} <span>${formatNumber(counts.get(brand.slug) ?? 0)}</span></a>`),
   ].join("");
-  const cards = items.map((item) => {
+  const renderFaqCard = (item) => {
     const brand = brands.find((entry) => entry.slug === item.brand);
     return `<article class="faq-item" data-faq-item data-faq-id="${escapeHtml(item.id)}" data-brand="${escapeHtml(item.brand)}" data-category="${escapeHtml(item.category)}" data-reviewed-at="${escapeHtml(item.reviewedAt)}" data-source-url="${escapeHtml(item.sourceUrl)}">
       <header class="faq-item__header"><p><span data-field="brand">${escapeHtml(brand?.name ?? item.brand)}</span><span data-field="category">${escapeHtml(item.category)}</span></p><code data-field="faq-id">${escapeHtml(item.id)}</code></header>
@@ -205,6 +205,21 @@ export function renderFaqPage({ brands = [], items = [], allItems = items, selec
       <p class="faq-item__answer" data-field="answer">${escapeHtml(item.answer)}</p>
       <footer class="faq-item__source"><span>공식 자료 확인일 <time data-field="reviewed-at" datetime="${escapeHtml(item.reviewedAt)}">${escapeHtml(item.reviewedAt)}</time></span><a data-field="source" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="external nofollow noreferrer">${escapeHtml(item.sourceTitle)} ↗</a></footer>
     </article>`;
+  };
+  const visibleBrands = selected ? [selected] : brands;
+  const brandGroups = visibleBrands.map((brand) => {
+    const brandItems = items.filter((item) => item.brand === brand.slug);
+    const categories = [...new Set(brandItems.map((item) => item.category))];
+    const viewLink = selected
+      ? '<a class="button button--secondary" href="/faqs">전체 브랜드 보기</a>'
+      : `<a class="button button--secondary" href="/faqs?brand=${encodeURIComponent(brand.slug)}">${escapeHtml(brand.name)}만 보기</a>`;
+    return `<section class="faq-brand-group" id="faq-brand-${escapeHtml(brand.slug)}" data-faq-brand-group="${escapeHtml(brand.slug)}" data-faq-brand-count="${brandItems.length}">
+      <header class="faq-brand-group__header">
+        <div><p class="eyebrow">BRAND FAQ · ${escapeHtml(brand.slug.toUpperCase())}</p><h2>${escapeHtml(brand.name)} FAQ <strong>${formatNumber(brandItems.length)}</strong>문항</h2><p>${categories.map((category) => escapeHtml(category)).join(" · ")}</p></div>
+        <div class="faq-brand-group__actions"><a href="${escapeHtml(brand.officialSite)}" target="_blank" rel="external nofollow noreferrer">공식 홈페이지 ↗</a>${viewLink}</div>
+      </header>
+      <div class="faq-list">${brandItems.map(renderFaqCard).join("")}</div>
+    </section>`;
   }).join("");
   const crawlStartUrl = `${displayBase}/faqs`;
   return layout({
@@ -215,9 +230,9 @@ export function renderFaqPage({ brands = [], items = [], allItems = items, selec
       <section class="faq-section"><div class="shell">
         <aside class="crawl-address" aria-label="FAQ 크롤링 시작 주소"><div><p class="eyebrow">FAQ CRAWL START URL</p><code id="faq-crawl-url">${escapeHtml(crawlStartUrl)}</code></div><button class="copy-button" type="button" data-copy-target="faq-crawl-url">주소 복사</button></aside>
         <div class="faq-notice"><strong>출처 사용 원칙</strong><p>원문을 대량 복제하지 않고 핵심을 재작성했습니다. 실제 구매·보증·정비 판단 전에는 각 카드의 공식 출처에서 최신 조건을 다시 확인하세요.</p></div>
-        <nav class="faq-brand-nav" aria-label="자동차 브랜드 선택">${brandLinks}</nav>
-        <div class="catalog-toolbar"><div><p class="eyebrow">FAQ RESULT</p><h2>${escapeHtml(selected?.name ?? "전체 브랜드")} <strong>${formatNumber(totalCount)}</strong>문항</h2></div><p><code>article.faq-item[data-faq-id]</code> 선택자로 수집</p></div>
-        <div class="faq-list" data-faq-list data-faq-count="${escapeHtml(totalCount)}" data-selected-brand="${escapeHtml(selectedBrand)}">${cards}</div>
+        <div class="faq-brand-picker"><div><p class="eyebrow">SELECT A BRAND</p><h2>브랜드별로 찾아보기</h2><p>자동차 회사를 선택하면 해당 브랜드의 질문만 모아서 볼 수 있습니다.</p></div><nav class="faq-brand-nav" aria-label="자동차 브랜드 선택">${brandLinks}</nav></div>
+        <div class="catalog-toolbar"><div><p class="eyebrow">FAQ RESULT</p><h2>${escapeHtml(selected?.name ?? "전체 브랜드")} <strong>${formatNumber(totalCount)}</strong>문항</h2></div><p><code>[data-faq-brand-group]</code> 안의 <code>article.faq-item</code>을 수집</p></div>
+        <div class="faq-groups" data-faq-list data-faq-count="${escapeHtml(totalCount)}" data-selected-brand="${escapeHtml(selectedBrand)}">${brandGroups}</div>
       </div></section>`,
   });
 }

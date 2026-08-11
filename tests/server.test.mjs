@@ -206,6 +206,9 @@ test("brand FAQ page exposes eight official-source brand groups with stable craw
   }
   const items = html.match(/<article\b[^>]*\bdata-faq-item\b[^>]*>/gi) ?? [];
   assert.equal(items.length, 24);
+  assert.equal((html.match(/<section\b[^>]*\bdata-faq-brand-group=/gi) ?? []).length, 8);
+  assert.match(html, /data-faq-brand-group="hyundai" data-faq-brand-count="3"/);
+  assert.match(html, /현대만 보기/);
   assert.ok(items.every((item) => /data-faq-id="[^"]+"/.test(item)));
   assert.ok(items.every((item) => /data-source-url="https:\/\//.test(item)));
   assert.match(html, /data-field="question"/);
@@ -216,6 +219,9 @@ test("brand FAQ page exposes eight official-source brand groups with stable craw
   assert.equal(filteredResponse.status, 200);
   const filtered = await readHtml(filteredResponse);
   assert.match(filtered, /data-selected-brand="bmw"/);
+  assert.equal((filtered.match(/<section\b[^>]*\bdata-faq-brand-group=/gi) ?? []).length, 1);
+  assert.match(filtered, /data-faq-brand-group="bmw" data-faq-brand-count="3"/);
+  assert.match(filtered, /전체 브랜드 보기/);
   assert.equal((filtered.match(/<article\b[^>]*\bdata-faq-item\b[^>]*>/gi) ?? []).length, 3);
   assert.doesNotMatch(filtered, /data-brand="hyundai"/);
 
