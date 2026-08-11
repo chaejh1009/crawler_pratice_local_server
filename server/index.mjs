@@ -4,11 +4,11 @@ import { loadEnvFile } from "node:process";
 
 import { createApp } from "./app.mjs";
 import {
+  createDailyApiKeyProvider,
   createApiKeyService,
   createMemoryApiKeyStoreFromEnv,
   createMysqlApiKeyStore,
   ensureApiKeysTable,
-  readRawApiKeysFromEnv,
 } from "./api-keys.mjs";
 import { createRepositoryFromEnv, mysqlConnectionOptions } from "./repository.mjs";
 
@@ -31,11 +31,14 @@ function positiveInteger(value, fallback, maximum = Number.MAX_SAFE_INTEGER) {
 
 const repository = await createRepositoryFromEnv(process.env);
 const startupHealth = await repository.health();
+const dailyApiKeyProvider = createDailyApiKeyProvider({
+  secret: process.env.DAILY_API_KEY_SECRET || process.env.DEALER_PUBLIC_ID_SECRET,
+});
 
 async function createApiKeyRuntime() {
   if (startupHealth.source !== "mysql") {
     const store = createMemoryApiKeyStoreFromEnv(process.env);
-    return { service: createApiKeyService({ store }), close: () => store.close() };
+    return { service: createApiKeyService({ store, dailyApiKeyProvider }), close: () => store.close() };
   }
 
   const mysql = await import("mysql2/promise");
@@ -43,13 +46,14 @@ async function createApiKeyRuntime() {
   const pool = createPool(mysqlConnectionOptions(process.env));
   await ensureApiKeysTable(pool);
   const store = createMysqlApiKeyStore(pool);
-  return { service: createApiKeyService({ store }), close: () => pool.end() };
+  return { service: createApiKeyService({ store, dailyApiKeyProvider }), close: () => pool.end() };
 }
 
 const apiKeyRuntime = await createApiKeyRuntime();
 const server = createServer(createApp({
   repository,
   apiKeyService: apiKeyRuntime.service,
+  dailyApiKeyProvider,
   apiRateLimit: {
     limit: positiveInteger(process.env.API_RATE_LIMIT_PER_MINUTE, 60, 100_000),
     windowMs: 60_000,
@@ -96,10 +100,7 @@ server.listen(port, host, () => {
   console.log(`  내 컴퓨터: http://localhost:${port}`);
   for (const address of lanAddresses()) console.log(`  같은 Wi-Fi 후보: ${address}`);
   console.log(`  데이터 소스: ${startupHealth.source}\n`);
-  if (startupHealth.source !== "mysql" && readRawApiKeysFromEnv(process.env).length === 0) {
-    console.warn("  경고: UCAR_API_KEY가 없어 정식 API 요청은 인증되지 않습니다.");
-    console.warn("  npm run api-key:create 로 키를 발급한 뒤 환경 변수에 설정하세요.\n");
-  }
+  console.log("  공개 일일 API 키: /api/v1/public-key (한국시간 자정 자동 교체)\n");
 });
 
 let shuttingDown = false;

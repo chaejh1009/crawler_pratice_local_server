@@ -8,6 +8,7 @@ API 응답의 기본 `Content-Type`은 `application/json; charset=utf-8`입니�
 
 | 메서드 | 경로 | 용도 | API 키 |
 | --- | --- | --- | --- |
+| `GET`, `HEAD` | `/api/v1/public-key` | 오늘의 키와 23시 이후 다음 날 키 | 불필요 |
 | `GET`, `HEAD` | `/api/v1/cars` | 매물 검색·필터·정렬·페이지네이션 | 필요 |
 | `GET`, `HEAD` | `/api/v1/cars/cursor` | 대량 수집용 기본키 커서 순회 | 필요 |
 | `GET`, `HEAD` | `/api/v1/changes` | 고정 snapshot 증분 변경 로그 | 필요 |
@@ -22,11 +23,35 @@ API 응답의 기본 `Content-Type`은 `application/json; charset=utf-8`입니�
 
 `HEAD`는 대응하는 `GET`과 같은 상태 및 헤더를 반환하지만 응답 본문은 보내지 않습니다. 정식 API는 `GET`, `HEAD`, `OPTIONS`만 지원합니다.
 
-HTML 경로인 `/`, `/cars`, `/cars/:id`, `/changes`, `/generation-runs`, `/crawl-policy`, `/docs`, `/learning-guide`와 정적 파일은 API 키 없이 접근할 수 있습니다. 따라서 API 키는 수업에서 정식 JSON API 인증을 연습하기 위한 장치이며, 공개 HTML에 표시되는 데이터 자체를 비밀로 만드는 수단은 아닙니다.
+HTML 경로인 `/`, `/cars`, `/cars/:id`, `/changes`, `/generation-runs`, `/crawl-policy`, `/docs`, `/learning-guide`, 공개 키 경로 `/api/v1/public-key`와 정적 파일은 API 키 없이 접근할 수 있습니다. 따라서 API 키는 수업에서 정식 JSON API 인증을 연습하기 위한 장치이며, 공개 HTML에 표시되는 데이터 자체를 비밀로 만드는 수단은 아닙니다.
 
 ## API 키 인증
 
 `/api/v1` 아래의 `GET`과 `HEAD` 요청은 API 키가 필요합니다. 다음 두 방식 가운데 하나만 사용합니다.
+
+수강생용 키는 한국시간(`Asia/Seoul`) 날짜마다 결정되는 공개 고정값입니다. 매일 `00:00`에 새 키가 활성화되고 이전 키는 즉시 만료됩니다. `23:00`부터 `/docs`와 다음 공개 응답의 `data.next`에 다음 날 키가 미리 표시되지만, 그 키는 자정 전에는 인증되지 않습니다.
+
+```bash
+curl 'http://127.0.0.1:4000/api/v1/public-key'
+```
+
+```json
+{
+  "data": {
+    "timezone": "Asia/Seoul",
+    "rotation": "daily_at_00:00",
+    "current": {
+      "date": "2026-08-11",
+      "api_key": "ucar_v1_...",
+      "active_from": "2026-08-11T00:00:00+09:00",
+      "expires_at": "2026-08-12T00:00:00+09:00"
+    },
+    "next": null
+  }
+}
+```
+
+자동화 프로그램은 실행 직전에 `data.current.api_key`를 읽어 메모리에만 두고 요청 헤더에 사용합니다. 수집이 자정을 넘겨 `403`을 받으면 공개 키를 다시 조회하고, 저장된 `links.next` 또는 체크포인트의 동일 요청을 새 키로 한 번만 재시도합니다. `data.next`를 미리 저장해도 자정 전에는 사용하지 마세요.
 
 ### X-API-Key 헤더
 
@@ -60,7 +85,7 @@ API 키를 쿼리 문자열에 넣는 방식은 지원하지 않습니다. `X-AP
 X-API-Key-Prefix: ucar_v1_0123456789abcdef
 ```
 
-발급된 원문 키는 발급 명령에서 한 번만 표시됩니다. MySQL에는 원문이 아니라 SHA-256 해시와 공개 prefix만 저장됩니다.
+별도의 장기 관리자 키가 필요한 경우에만 다음 기존 발급 기능을 선택적으로 사용할 수 있습니다. 이 키는 공개 일일 키와 달리 문서에 표시되지 않으며 MySQL에는 원문 대신 SHA-256 해시와 공개 prefix만 저장됩니다.
 
 ```bash
 # 메모리 모드용 키 발급
@@ -75,7 +100,7 @@ npm run api-key:revoke -- \
   --prefix ucar_v1_0123456789abcdef
 ```
 
-메모리 모드는 발급된 키를 `UCAR_API_KEY` 또는 쉼표로 구분한 `UCAR_API_KEYS` 환경 변수에 설정한 뒤 서버를 시작합니다. 환경 변수에서 키를 제거하거나 바꾼 경우 서버를 다시 시작해야 합니다.
+선택적 장기 키의 메모리 모드는 발급된 키를 `UCAR_API_KEY` 또는 쉼표로 구분한 `UCAR_API_KEYS` 환경 변수에 설정한 뒤 서버를 시작합니다. 환경 변수에서 키를 제거하거나 바꾼 경우 서버를 다시 시작해야 합니다. 일반 수강생은 이 절차가 필요하지 않습니다.
 
 ### 401과 403의 차이
 
@@ -96,7 +121,7 @@ npm run api-key:revoke -- \
 WWW-Authenticate: Bearer realm="AutoData Lab API"
 ```
 
-키 형식이 잘못되었거나, 존재하지 않거나, 폐기되었거나, 두 인증 헤더를 동시에 보내면 `403 Forbidden`입니다.
+키 형식이 잘못되었거나, 날짜가 지나 만료되었거나, 존재하지 않거나, 폐기되었거나, 두 인증 헤더를 동시에 보내면 `403 Forbidden`입니다.
 
 ```json
 {
@@ -111,7 +136,7 @@ WWW-Authenticate: Bearer realm="AutoData Lab API"
 
 ### 요청 제한
 
-인증된 API는 기본적으로 키별 분당 60회이며 `API_RATE_LIMIT_PER_MINUTE`로 수업 환경에 맞게 조정할 수 있습니다. DB 인증 전에 클라이언트 주소별 분당 120회의 `API_PREAUTH_RATE_LIMIT_PER_MINUTE`도 적용하므로 잘못된 키 반복과 이미 한도를 넘긴 키가 인증 저장소를 무제한 조회하지 못합니다. 정상 응답에는 `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`이 포함되고, 한도를 넘으면 `429 RATE_LIMITED`와 `Retry-After`를 반환합니다. 유효 키의 `last_used_at` 쓰기는 프로세스 안에서 최대 분당 한 번으로 샘플링합니다. HTML 데이터 경로는 기본 분당 120회이지만, 크롤러는 `/robots.txt`와 `/crawl-policy`에 따라 요청 사이에 최소 1초를 기다립니다.
+인증된 API는 기본적으로 `키 prefix + 접속 클라이언트 주소` 조합별 분당 60회이며 `API_RATE_LIMIT_PER_MINUTE`로 수업 환경에 맞게 조정할 수 있습니다. 모든 수강생이 같은 공개 일일 키를 사용해도 서로 다른 장치의 한도를 함께 소모하지 않게 하기 위한 기준입니다. DB 인증 전에 클라이언트 주소별 분당 120회의 `API_PREAUTH_RATE_LIMIT_PER_MINUTE`도 적용합니다. 정상 응답에는 `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`이 포함되고, 한도를 넘으면 `429 RATE_LIMITED`와 `Retry-After`를 반환합니다. 유효한 선택적 장기 키의 `last_used_at` 쓰기는 프로세스 안에서 최대 분당 한 번으로 샘플링합니다. HTML 데이터 경로는 기본 분당 120회이지만, 크롤러는 `/robots.txt`와 `/crawl-policy`에 따라 요청 사이에 최소 1초를 기다립니다.
 
 ## 공통 데이터 규칙
 

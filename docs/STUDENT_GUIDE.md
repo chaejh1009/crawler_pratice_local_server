@@ -3,7 +3,9 @@
 이 문서는 배포자가 실행해 둔 AutoData Lab에 접속해 중고차 HTML과 JSON API를 수집하는 수강생용 안내서입니다. 수강생에게 필요한 것은 다음 두 가지입니다.
 
 - 배포자가 알려 준 서버 주소(예: `http://192.168.0.23:4000`)
-- 배포자가 안전한 방법으로 전달한 API 키(형식: `ucar_v1_...`)
+- 서버의 `/docs` 또는 `/api/v1/public-key`에 공개된 오늘의 API 키(형식: `ucar_v1_...`)
+
+공개 키는 한국시간 기준 매일 자정에 자동으로 바뀝니다. 23:00부터 다음 날 키도 미리 보이지만 자정 전에는 사용할 수 없습니다.
 
 수강생은 Docker, MySQL, MongoDB, Node.js 서버를 설치하거나 실행하지 않습니다. 이 문서의 `127.0.0.1`은 서버와 실습 코드가 같은 컴퓨터에서 실행될 때만 유효합니다. 교실 서버에 접속할 때는 반드시 배포자가 알려 준 주소를 사용하세요.
 
@@ -17,38 +19,19 @@
 
 ```bash
 export AUTODATA_BASE_URL='http://192.168.0.23:4000'
-printf 'API 키: '
-read -r -s AUTODATA_API_KEY
-printf '\n'
-export AUTODATA_API_KEY
+curl "$AUTODATA_BASE_URL/api/v1/public-key"
 ```
 
-`API 키:`가 표시되면 배포자가 전달한 원문 키를 붙여 넣고 Enter를 누릅니다. 입력한 문자는 화면과 셸 명령 기록에 표시되지 않습니다.
+응답의 `data.current.api_key`가 지금 사용할 키입니다. 브라우저 실습은 `/docs#api-explorer`가 이 값을 자동으로 입력합니다.
 
 ### Windows PowerShell
 
 ```powershell
 $env:AUTODATA_BASE_URL = 'http://192.168.0.23:4000'
-$secureKey = Read-Host 'API 키' -AsSecureString
-$env:AUTODATA_API_KEY = [System.Net.NetworkCredential]::new('', $secureKey).Password
-Remove-Variable secureKey
+curl.exe "${env:AUTODATA_BASE_URL}/api/v1/public-key"
 ```
 
-PowerShell에서도 프롬프트가 나타난 뒤 원문 키를 입력합니다. 키 원문을 `$env:AUTODATA_API_KEY = '...'` 형태로 직접 명령 기록에 남기지 마세요.
-
-환경 변수는 현재 터미널 창에서만 사용합니다. 공용 컴퓨터에서는 실습이 끝난 뒤 키를 제거하세요.
-
-macOS 또는 Linux:
-
-```bash
-unset AUTODATA_API_KEY
-```
-
-Windows PowerShell:
-
-```powershell
-Remove-Item Env:AUTODATA_API_KEY
-```
+터미널에서 직접 `curl` 실습을 할 때는 공개 응답에서 복사한 현재 키를 세션 환경 변수 `AUTODATA_API_KEY`에 넣을 수 있습니다. 키가 공개값이더라도 URL 쿼리에는 넣지 말고 인증 헤더로만 전달합니다.
 
 ## 2. 접속과 수집 정책 확인
 
@@ -74,9 +57,9 @@ curl.exe "${env:AUTODATA_BASE_URL}/robots.txt"
 
 1. `<서버 주소>/crawl-policy`
 2. `<서버 주소>/robots.txt`
-3. `<서버 주소>/cars?page_size=5`
+3. `<서버 주소>/cars?page=1&page_size=20`
 
-`robots.txt`는 공개 HTML 경로를 안내하고 일반 웹 크롤러가 `/api/`를 순회하지 않도록 제한합니다. 수업용 JSON API는 배포자가 발급한 키를 헤더에 넣어 사용하는 별도 경로입니다. HTML 수집 요청 사이에는 최소 1초를 기다리세요. 이 서버의 수집 허가는 다른 웹사이트에 적용되지 않습니다.
+`robots.txt`는 공개 HTML과 공개 키 경로를 안내하고 그 외 `/api/`를 익명 순회하지 않도록 제한합니다. JSON 데이터 API에는 공개된 오늘의 키를 헤더에 넣습니다. HTML 수집 요청 사이에는 최소 1초를 기다리세요. 이 서버의 수집 허가는 다른 웹사이트에 적용되지 않습니다.
 
 ## 3. 브라우저 화면 사용법
 
@@ -87,19 +70,20 @@ curl.exe "${env:AUTODATA_BASE_URL}/robots.txt"
 | `/cars/:id` | 공개 | 차량 한 건의 상세 정보 |
 | `/changes` | 공개 | 고정된 상한까지 변경 이벤트 순회 |
 | `/generation-runs` | 공개 | 데이터 생성 상태 이벤트 순회 |
-| `/docs` | 공개 | API 요약과 브라우저 API 탐색기 |
+| `/docs` | 공개 | 오늘의 키와 브라우저 API 크롤러 |
+| `/api/v1/public-key` | 공개 | 현재 키와 23시 이후 다음 날 키 JSON |
 | `/learning-guide` | 공개 | HTML·API·CSV 관계 학습 순서 |
 | `/crawl-policy` | 공개 | 이 서버에서 허용한 수집 범위 |
 
 ### 차량 목록과 상세
 
-`/cars`에서는 검색어, 브랜드, 연료, 판매 상태, 차량 소재지, 최소 연식, 최대 주행거리, 최소·최대 가격, 정렬 방식, 표시 개수를 선택한 뒤 **조건 적용**을 누릅니다. 표시 개수는 12, 24, 48, 100개 중에서 고를 수 있고, HTML 목록의 기본값은 24개입니다.
+`/cars`는 게시판 형식이며 기본 주소 `/cars?page=1&page_size=20`에서 한 페이지에 20건을 보여 줍니다. 검색어, 브랜드, 연료, 판매 상태, 차량 소재지, 최소 연식, 최대 주행거리, 최소·최대 가격, 정렬 방식, 표시 개수를 선택한 뒤 **조건 적용**을 누릅니다. 표시 개수는 20, 40, 60, 100개 중에서 고를 수 있습니다.
 
 차량 제목을 누르면 `/cars/:id` 상세 화면으로 이동합니다. 목록 아래의 **이전**, **다음** 링크를 사용하고, 마지막 페이지에서 **다음**이 비활성화되면 정상 종료입니다. 조건에 맞는 차량이 없을 때 0건이 표시되는 것도 정상 결과입니다.
 
 ### API 문서와 탐색기
 
-`/docs`에는 현재 서버 주소, 엔드포인트, 필터 표, API 탐색기가 있습니다. 탐색기에서 API 키와 조건을 입력하고 **GET 요청 보내기**를 누르면 상태 코드와 JSON 응답을 확인할 수 있습니다. 탐색기는 키를 브라우저 저장소에 저장하지 않지만, 공용 화면에 키가 보이거나 캡처되지 않도록 주의하고 사용 후 페이지를 닫으세요.
+`/docs#api-explorer`에는 오늘의 공개 키가 자동 입력됩니다. 조건, 페이지당 건수, 최대 순회 페이지 수를 정한 뒤 **현재 페이지 조회** 또는 **API 크롤링 시작**을 누릅니다. 자동 크롤링은 응답의 `links.next`를 따라가며, 진행 중에는 **중지**, 완료 후에는 **JSON 저장**을 사용할 수 있습니다. 자정에 키가 바뀌어 `403`이 발생하면 화면이 현재 키를 다시 읽고 해당 페이지를 한 번 재시도합니다.
 
 ## 4. HTML 수집 실습
 
@@ -110,10 +94,10 @@ curl.exe "${env:AUTODATA_BASE_URL}/robots.txt"
 | 대상 | CSS 선택자 또는 속성 |
 | --- | --- |
 | 목록 컨테이너 | `[data-car-list]` |
-| 차량 카드 | `article.car-card[data-car-id]` |
-| 차량 ID | 카드의 `data-car-id` |
-| 매물 번호 | 카드의 `data-listing-number` |
-| 판매 상태 | 카드의 `data-status` |
+| 게시판 행 | `article.car-card[data-car-id]` |
+| 차량 ID | 행의 `data-car-id` |
+| 매물 번호 | 행의 `data-listing-number` |
+| 판매 상태 | 행의 `data-status` |
 | 제목 | `[data-field="title"]` |
 | 상세 링크 | `[data-field="title"] a[href]` |
 | 가격 원시 값 | `data[data-field="price"]`의 `value` |
@@ -157,7 +141,7 @@ BASE_URL = os.environ["AUTODATA_BASE_URL"].rstrip("/")
 session = requests.Session()
 session.headers.update({"User-Agent": "AutoData-Classroom/1.0"})
 
-url = f"{BASE_URL}/cars?page_size=24"
+url = f"{BASE_URL}/cars?page=1&page_size=20"
 seen_ids = set()
 records = []
 
@@ -200,15 +184,19 @@ print("고유 ID 수:", len(seen_ids))
 print(records[:2])
 ```
 
-응답 상태를 확인한 뒤 파싱하고, 카드가 0개라고 즉시 프로그램 오류로 판단하지 마세요. 필터 결과가 없거나 마지막 범위를 지난 경우일 수 있습니다.
+응답 상태를 확인한 뒤 파싱하고, 게시판 행이 0개라고 즉시 프로그램 오류로 판단하지 마세요. 필터 결과가 없거나 마지막 범위를 지난 경우일 수 있습니다.
 
 ## 5. API 키와 JSON API
 
 `/api/v1/*`의 `GET`과 `HEAD` 요청에는 API 키가 필요합니다. 다음 두 인증 방식 가운데 하나만 사용합니다.
 
+현재 공개 키를 환경 변수에 넣는 예시입니다. 장시간 자동화에서는 키를 파일에 고정하지 말고 아래 Python 예제처럼 실행 직전과 `403` 발생 시 다시 조회하세요.
+
 macOS 또는 Linux:
 
 ```bash
+export AUTODATA_API_KEY="$(curl -fsS "$AUTODATA_BASE_URL/api/v1/public-key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["current"]["api_key"])')"
+
 curl --include "$AUTODATA_BASE_URL/api/v1/cars?page_size=5" \
   -H "X-API-Key: $AUTODATA_API_KEY"
 
@@ -219,6 +207,8 @@ curl "$AUTODATA_BASE_URL/api/v1/stats" \
 Windows PowerShell:
 
 ```powershell
+$env:AUTODATA_API_KEY = (curl.exe -fsS "${env:AUTODATA_BASE_URL}/api/v1/public-key" | ConvertFrom-Json).data.current.api_key
+
 curl.exe --include "${env:AUTODATA_BASE_URL}/api/v1/cars?page_size=5" `
   -H "X-API-Key: $env:AUTODATA_API_KEY"
 
@@ -232,6 +222,7 @@ API 키를 URL의 쿼리 문자열에 넣지 마세요. `X-API-Key`와 `Authoriz
 
 | 경로 | 용도 |
 | --- | --- |
+| `/api/v1/public-key` | 인증 없이 현재 키와 23시 이후 다음 날 키 조회 |
 | `/api/v1/cars` | 검색·필터·정렬·페이지 조회 |
 | `/api/v1/cars/cursor` | 전체 차량을 ID 커서로 순회 |
 | `/api/v1/changes` | 성공이 검증된 변경 이벤트 증분 수집 |
@@ -307,30 +298,41 @@ curl.exe --get "${env:AUTODATA_BASE_URL}/api/v1/cars" `
 
 첫 페이지의 `previous`와 마지막 페이지의 `next`는 `null`입니다. 범위를 벗어난 페이지와 검색 결과 0건은 오류가 아니라 `200 OK`와 빈 `data` 배열을 반환합니다. 다음 URL을 직접 조립하지 말고 서버가 반환한 `links.next`를 사용하세요. `links.next`에는 API 키가 없으므로 매 요청에 인증 헤더를 다시 보냅니다.
 
-다음 Python 예제는 필터를 적용한 모든 페이지를 순회합니다.
+다음 Python 예제는 현재 공개 키를 자동으로 읽고 필터를 적용한 모든 페이지를 순회합니다. 자정을 지나 기존 키가 만료되어 `403`이 오면 키를 갱신한 뒤 실패한 페이지를 한 번만 다시 요청합니다.
 
 ```python
-import os
 import time
 from urllib.parse import urljoin
 
 import requests
 
-BASE_URL = os.environ["AUTODATA_BASE_URL"].rstrip("/")
-API_KEY = os.environ["AUTODATA_API_KEY"]
+BASE_URL = "http://192.168.0.23:4000"
 
 session = requests.Session()
-session.headers.update({
-    "X-API-Key": API_KEY,
-    "User-Agent": "AutoData-Classroom/1.0",
-})
+session.headers["User-Agent"] = "AutoData-Classroom/1.0"
+
+def refresh_api_key():
+    response = requests.get(f"{BASE_URL}/api/v1/public-key", timeout=10)
+    response.raise_for_status()
+    current = response.json()["data"]["current"]
+    session.headers["X-API-Key"] = current["api_key"]
+    print("API key date:", current["date"], "expires:", current["expires_at"])
+
+def get_with_daily_key(url):
+    response = session.get(url, timeout=10)
+    if response.status_code == 403:
+        refresh_api_key()
+        response = session.get(url, timeout=10)  # 같은 페이지를 한 번만 재시도
+    response.raise_for_status()
+    return response
+
+refresh_api_key()
 
 path = "/api/v1/cars?brand=hyundai&status=AVAILABLE&page_size=100&sort=price_asc"
 seen_ids = set()
 
 while path:
-    response = session.get(urljoin(BASE_URL + "/", path), timeout=10)
-    response.raise_for_status()
+    response = get_with_daily_key(urljoin(BASE_URL + "/", path))
     payload = response.json()
 
     for car in payload["data"]:
@@ -549,8 +551,8 @@ CSV의 `AREA`는 주소나 행정구역이 아니라 생산, 영업, 물류, IT 
 
 ## 10. 보안과 수집 예절
 
-- API 키는 요청 헤더로만 전달하고 URL, 소스 코드, Git, 노트북 출력, 로그에 남기지 않습니다.
-- `links.next`를 공유하거나 기록할 수는 있지만, 헤더 전체나 API 키 원문은 기록하지 않습니다.
+- 공개 일일 키는 요청 헤더로만 전달하고 URL이나 장기 실행 소스 코드에 고정하지 않습니다.
+- `links.next`는 기록할 수 있지만, 자동화는 날짜가 바뀔 때 공개 키를 다시 읽도록 만듭니다.
 - HTML 요청 사이에는 최소 1초를 기다립니다.
 - API 응답의 `RateLimit-Remaining`, `RateLimit-Reset`을 확인하고 `429`에서는 `Retry-After`가 지난 뒤 재개합니다.
 - 한 번에 모든 응답을 메모리에 모으지 말고 페이지 또는 묶음 단위로 즉시 저장합니다.
@@ -596,8 +598,8 @@ CSV의 `AREA`는 주소나 행정구역이 아니라 생산, 영업, 물류, IT 
 
 ## 13. 제출 전 체크리스트
 
-- [ ] 제출물에 API 키 원문, `Authorization` 헤더, 쿠키, DB 연결 문자열이 없습니다.
-- [ ] 코드가 서버 주소와 API 키를 환경 변수에서 읽습니다.
+- [ ] 제출물에 서버 secret, `Authorization` 헤더, 쿠키, DB 연결 문자열이 없습니다.
+- [ ] 코드가 서버 주소를 설정에서 읽고 일일 API 키를 공개 경로에서 갱신합니다.
 - [ ] 실제 사용한 경로, 필터, 수집 시각, HTTP 상태를 기록했습니다.
 - [ ] HTML 수집기가 `a[rel="next"]`로 종료하고 요청 사이에 1초를 기다립니다.
 - [ ] JSON 목록 수집기가 `links.next`로 종료하며 각 요청에 인증 헤더를 보냅니다.

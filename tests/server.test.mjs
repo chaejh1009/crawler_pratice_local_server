@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { after, before, test } from "node:test";
 
 import { createApp, createFixedWindowRateLimiter } from "../server/app.mjs";
-import { createApiKeyService, createMemoryApiKeyStore, generateApiKey } from "../server/api-keys.mjs";
+import { createApiKeyService, createDailyApiKeyProvider, createMemoryApiKeyStore, generateApiKey } from "../server/api-keys.mjs";
 import { createMemoryRepository } from "../server/repository.mjs";
 
 const silentLogger = { debug() {}, info() {}, warn() {}, error() {} };
@@ -15,12 +15,17 @@ const generatedKey = generateApiKey({
 let repository;
 let server;
 let baseUrl;
+const dailyNow = new Date("2026-08-11T13:30:00.000Z"); // 2026-08-11 22:30 KST
+const dailyApiKeyProvider = createDailyApiKeyProvider({
+  secret: "server-test-daily-api-key-secret-0001",
+  now: () => dailyNow,
+});
 
 before(async () => {
   repository = createMemoryRepository({ count: 240 });
   const keyStore = createMemoryApiKeyStore({ rawKeys: [generatedKey.rawKey] });
-  const apiKeyService = createApiKeyService({ store: keyStore });
-  server = createServer(createApp({ repository, apiKeyService, logger: silentLogger }));
+  const apiKeyService = createApiKeyService({ store: keyStore, dailyApiKeyProvider });
+  server = createServer(createApp({ repository, apiKeyService, dailyApiKeyProvider, logger: silentLogger }));
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
@@ -87,6 +92,50 @@ test("HTML car list exposes stable crawling selectors and pagination", async () 
   assert.match(html, /rel="next"/);
 });
 
+test("HTML car board defaults to 20 rows and publishes a crawl start URL", async () => {
+  const response = await request("/cars");
+  assert.equal(response.status, 200);
+  const html = await readHtml(response);
+  assert.match(html, /class="board-list"/);
+  assert.match(html, /HTML CRAWL START URL/);
+  assert.match(html, /\/cars\?page=1&amp;page_size=20/);
+  const rows = html.match(/<article\b[^>]*\bboard-list__row\b[^>]*\bdata-car-id="[^"]+"[^>]*>/gi) ?? [];
+  assert.equal(rows.length, 20);
+  assert.match(html, /<strong>1<\/strong> \/ 12 페이지/);
+  assert.match(html, /rel="next"[^>]+page=2[^>]+page_size=20/);
+});
+
+test("API documentation exposes a keyed multi-page crawler", async () => {
+  const response = await request("/docs#api-explorer");
+  assert.equal(response.status, 200);
+  const html = await readHtml(response);
+  assert.match(html, /data-api-key/);
+  assert.match(html, /data-toggle-secret/);
+  assert.match(html, /data-api-crawl/);
+  assert.match(html, /data-api-stop/);
+  assert.match(html, /data-api-max-pages/);
+  assert.match(html, /data-api-download/);
+  assert.match(html, /name="page_size" type="number" value="20"/);
+  assert.match(html, /links\.next/);
+  assert.match(html, /오늘의 공개 API 키/);
+  assert.match(html, new RegExp(dailyApiKeyProvider.keyForDate("2026-08-11").rawKey));
+});
+
+test("public daily key endpoint requires no key and authenticates only the current KST date", async () => {
+  const keyResponse = await request("/api/v1/public-key");
+  assert.equal(keyResponse.status, 200);
+  const schedule = (await readJson(keyResponse)).data;
+  assert.equal(schedule.timezone, "Asia/Seoul");
+  assert.equal(schedule.current.date, "2026-08-11");
+  assert.equal(schedule.next, null);
+
+  const response = await request("/api/v1/cars?page_size=3", {
+    headers: { "X-API-Key": schedule.current.api_key },
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await readJson(response)).data.length, 3);
+});
+
 test("crawl policy and robots define the classroom-only collection boundary", async () => {
   const [policyResponse, robotsResponse] = await Promise.all([request("/crawl-policy"), request("/robots.txt")]);
   assert.equal(policyResponse.status, 200);
@@ -96,6 +145,7 @@ test("crawl policy and robots define the classroom-only collection boundary", as
   assert.equal(robotsResponse.status, 200);
   const robots = await robotsResponse.text();
   assert.match(robots, /Allow: \/changes/);
+  assert.match(robots, /Allow: \/api\/v1\/public-key/);
   assert.match(robots, /Disallow: \/api\//);
   assert.match(robots, /Crawl-delay: 1/);
 });

@@ -147,7 +147,7 @@ sources:
 ### 3.2 `/cars` HTML을 수집한다
 
 ```text
-GET /cars?page=1&page_size=24
+GET /cars?page=1&page_size=20
 ```
 
 안정 selector 계약은 다음과 같다.
@@ -155,7 +155,7 @@ GET /cars?page=1&page_size=24
 | 의미 | selector 또는 attribute |
 | --- | --- |
 | 목록 container | `[data-car-list]` |
-| 차량 card | `article.car-card[data-car-id]` |
+| 게시판 행 | `article.car-card[data-car-id]` |
 | 제목 | `[data-field="title"]` |
 | 가격 | `[data-field="price"]`의 `value` |
 | 주행거리 | `[data-field="mileage"]` |
@@ -475,7 +475,7 @@ JSON API는 첫 응답의 `meta.until_id`와 `meta.dataset_epoch`를 checkpoint�
 
 ### Day 21
 
-- [ ] `/cars?page_size=5`에 차량 card 5개와 stable selector가 있다.
+- [ ] `/cars?page_size=5`에 게시판 행 5개와 stable selector가 있다.
 - [ ] `/cars`의 다음 링크가 `rel="next"`를 가진다.
 - [ ] `/changes?after_seq=0&limit=5`가 `data-snapshot-until`을 표시한다.
 - [ ] `/changes` 다음 링크가 첫 `until_seq`를 유지한다.

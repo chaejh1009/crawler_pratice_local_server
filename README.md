@@ -7,6 +7,11 @@ AutoData Lab은 외부 사이트 대신 수집 권한이 명확한 합성 중고
 - 크롤링 가능한 증분·적재 로그: `/changes`, `/generation-runs`
 - 주기 생성 데이터의 MySQL·MongoDB 멱등 이중 적재
 
+수강생에게 전달할 크롤링 시작 주소는 다음 두 개입니다.
+
+- HTML 게시판(페이지당 20건): `http://<배포자-IP>:4000/cars?page=1&page_size=20`
+- API 키 입력 크롤러: `http://<배포자-IP>:4000/docs#api-explorer`
+
 HTML 선택자와 페이지네이션, API 키·필터·커서, 고정 high-water mark 증분 수집을 연습한 뒤 직원·업무영역 관계를 분석할 수 있습니다. 차량과 사람 데이터는 모두 교육용이며 실제 차량번호, VIN, 전화번호를 만들지 않습니다. 허용 범위는 `/crawl-policy`에서 확인하며 이 허가는 제3자 사이트에 적용되지 않습니다.
 
 `/cars`와 `/api/v1/cars*`는 MySQL의 현재 차량 projection(초기 seed와 아직 MongoDB 복구 중인 run 포함)입니다. 두 저장소에 검증 완료된 이벤트만 수집해야 할 때는 `SUCCESS` run만 공개하는 `/changes` 또는 `/api/v1/changes`를 사용하고, `/api/v1/stats`의 `pendingChangeCount`를 함께 확인하세요.
@@ -48,7 +53,7 @@ Markdown 원문을 수정한 뒤에는 `npm run docs:build`로 두 HTML을 다�
 
 ## 바로 실행: 메모리 모드
 
-이 작업 폴더의 로컬 `.env`에는 요청한 네 CSV 경로와 한 개의 수업용 API 키가 이미 설정되어 있습니다. `.env`는 Git에서 제외됩니다.
+이 작업 폴더의 로컬 `.env`에는 요청한 네 CSV 경로와 서버 비밀값이 설정되어 있습니다. `.env`는 Git에서 제외됩니다. 수강생용 API 키는 서버가 한국시간 날짜별로 자동 생성해 공개합니다.
 
 ```bash
 npm install
@@ -62,7 +67,6 @@ npm start
 ```bash
 cp .env.example .env
 chmod 600 .env
-npm run api-key:create -- --source memory --name "1반 실습"
 ```
 
 직원번호 후보를 공개 딜러 코드에서 역추측할 수 없도록 별도의 32자 이상 비밀값도 생성해 `.env`에만 보관합니다. 이 값을 바꾸면 동일 담당자의 공개 코드도 달라지므로 운영 중에는 유지하세요.
@@ -71,13 +75,13 @@ npm run api-key:create -- --source memory --name "1반 실습"
 openssl rand -hex 32
 ```
 
-발급 결과의 원문 키를 `.env`의 `UCAR_API_KEY`에 한 번만 넣고, CSV 네 경로를 실제 절대 경로로 바꿉니다. 여러 반의 키는 쉼표로 구분한 `UCAR_API_KEYS`로 설정할 수 있습니다.
+생성한 난수는 `DEALER_PUBLIC_ID_SECRET`과 `DAILY_API_KEY_SECRET`에 각각 서로 다른 값으로 넣는 것을 권장합니다. `DAILY_API_KEY_SECRET`이 비어 있으면 딜러 secret을 별도 HMAC 영역으로 사용합니다. CSV 네 경로는 실제 절대 경로로 바꿉니다.
 
 ```dotenv
 DATA_SOURCE=memory
 MEMORY_CAR_COUNT=5000
-UCAR_API_KEY=ucar_v1_발급값
 DEALER_PUBLIC_ID_SECRET=위에서_생성한_64자리_난수
+DAILY_API_KEY_SECRET=별도로_생성한_64자리_난수
 
 EMPLOYEE_CSV_PATH=/data/biz_employee_master.csv
 AREA_CSV_PATH=/data/biz_meta_area_50000.csv
@@ -92,18 +96,17 @@ MySQL과 MongoDB를 시작하고 네 CSV와 중고차 100,000건을 MySQL 기준
 ```bash
 docker compose up -d mysql mongo
 npm run db:seed -- --count=100000 --require-csv=true --reset-mongo=true
-npm run api-key:create -- --source mysql --name "1반 실습"
 ```
 
 이미 만들어 둔 Docker named volume에는 `/docker-entrypoint-initdb.d`의 변경이 자동 반영되지 않습니다. 이번 버전은 MySQL과 MongoDB에 같은 `dataset_epoch`를 만드는 초기화가 필요하므로 **기존 volume에 `schema.sql`만 적용해서는 안 됩니다.** HTTP 서버와 생성기를 멈추고 필요한 실습 결과를 백업한 뒤 위의 `db:seed --reset-mongo=true`를 실행하세요. seed는 합성 기준 데이터와 생성 run·변경 로그를 다시 만들지만 `api_keys`는 보존합니다.
 
-발급된 원문 키는 학생에게 한 번만 전달합니다. MySQL에는 원문이 아니라 식별 prefix와 SHA-256 해시만 저장됩니다. 이후 `.env`의 `DATA_SOURCE`를 `mysql`로 바꾸고 서버를 실행합니다.
+공개 일일 키는 저장 모드와 관계없이 서버가 자동으로 제공합니다. 이후 `.env`의 `DATA_SOURCE`를 `mysql`로 바꾸고 서버를 실행합니다.
 
 ```bash
 npm start
 ```
 
-`db:seed`는 차량, 브랜드, 모델, 소재지, 직원, 업무영역, lookup, join-ready 테이블을 다시 만듭니다. MongoDB mirror가 설정된 환경에서는 새 MySQL 변경 커서와 충돌하지 않도록 `--reset-mongo=true`가 필수이며, 생략해도 안전한 기본값 `SEED_RESET_MONGO=true`가 적용됩니다. seed 동안 MySQL과 MongoDB의 `dataset_state`는 `RESETTING`, 모든 단계가 끝나면 같은 새 `dataset_epoch`의 `READY`가 됩니다. 중간 실패 시 health/API/generator는 fail-closed합니다. MongoDB에서는 `vehicle_listings`, `listing_change_log`, `generation_runs`, `generation_run_events`만 비우며 다른 컬렉션은 건드리지 않습니다. **MySQL의 `api_keys`도 비우지 않아 기존 수업 키가 유지됩니다.** 재시드 전에는 HTTP 서버와 생성기를 먼저 중지하고, 보존할 학생 수집 결과는 이 데이터베이스가 아닌 별도 스키마나 파일에 두세요.
+`db:seed`는 차량, 브랜드, 모델, 소재지, 직원, 업무영역, lookup, join-ready 테이블을 다시 만듭니다. MongoDB mirror가 설정된 환경에서는 새 MySQL 변경 커서와 충돌하지 않도록 `--reset-mongo=true`가 필수이며, 생략해도 안전한 기본값 `SEED_RESET_MONGO=true`가 적용됩니다. seed 동안 MySQL과 MongoDB의 `dataset_state`는 `RESETTING`, 모든 단계가 끝나면 같은 새 `dataset_epoch`의 `READY`가 됩니다. 중간 실패 시 health/API/generator는 fail-closed합니다. MongoDB에서는 `vehicle_listings`, `listing_change_log`, `generation_runs`, `generation_run_events`만 비우며 다른 컬렉션은 건드리지 않습니다. **MySQL의 `api_keys`도 비우지 않아 선택적으로 만든 장기 관리자 키가 유지됩니다.** 재시드 전에는 HTTP 서버와 생성기를 먼저 중지하고, 보존할 학생 수집 결과는 이 데이터베이스가 아닌 별도 스키마나 파일에 두세요.
 
 더 큰 데이터셋 예시:
 
@@ -147,6 +150,16 @@ GENERATOR_BATCH_SIZE=25 GENERATOR_INTERVAL_MS=10000 npm run generate:watch
 
 ## API 키 관리
 
+수강생용 공개 키는 별도 발급 명령 없이 `/api/v1/public-key`와 `/docs`에 표시됩니다. 한국시간 매일 자정에 바뀌고, 23:00부터 다음 날 키가 함께 표시됩니다. 다음 날 키는 자정 전에는 인증되지 않습니다.
+
+자동화 프로그램은 실행 직전에 다음 공개 경로에서 `data.current.api_key`를 읽어야 합니다. 자정을 지나 `403`이 발생하면 현재 페이지 체크포인트를 유지한 채 키를 다시 읽고 해당 요청을 한 번만 재시도합니다.
+
+```bash
+curl 'http://127.0.0.1:4000/api/v1/public-key'
+```
+
+아래 발급·폐기 명령은 별도의 고정 관리자 키가 필요한 경우에만 선택적으로 사용합니다.
+
 메모리 키 발급:
 
 ```bash
@@ -189,12 +202,12 @@ IP가 `192.168.0.23`이면 학생은 `http://192.168.0.23:4000`으로 접속합�
 | 메서드 | 경로 | 인증 | 용도 |
 | --- | --- | --- | --- |
 | `GET` | `/` | 공개 | 데이터셋 홈 |
-| `GET` | `/cars` | 공개 | 크롤링 가능한 차량 목록 |
+| `GET` | `/cars` | 공개 | 페이지당 기본 20건의 게시판형 차량 목록 |
 | `GET` | `/cars/:id` | 공개 | 차량 상세 HTML |
 | `GET` | `/changes` | 공개 | 고정 snapshot 변경 로그 HTML |
 | `GET` | `/generation-runs` | 공개 | append-only 적재 상태 이벤트 HTML |
 | `GET` | `/crawl-policy` | 공개 | 이 샌드박스의 수집 허용 범위 |
-| `GET` | `/docs` | 공개 | API 문서와 키 입력 탐색기 |
+| `GET` | `/docs` | 공개 | API 문서와 키 입력·다중 페이지 크롤러 |
 | `GET` | `/learning-guide` | 공개 | 수업 진행 가이드 |
 | `GET` | `/healthz` | 공개 | 서버·저장소 상태 |
 | `GET` | `/api/v1/cars` | 키 | 차량 필터·정렬·페이지 목록 |
@@ -219,7 +232,7 @@ python -m pip install requests beautifulsoup4
 import requests
 from bs4 import BeautifulSoup
 
-url = "http://127.0.0.1:4000/cars?page_size=24"
+url = "http://127.0.0.1:4000/cars?page=1&page_size=20"
 
 while url:
     response = requests.get(url, timeout=10)

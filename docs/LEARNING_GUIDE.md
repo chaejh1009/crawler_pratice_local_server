@@ -63,15 +63,15 @@ curl "$AUTODATA_BASE_URL/robots.txt"
 | 대상 | CSS 선택자 또는 속성 |
 | --- | --- |
 | 목록 컨테이너 | `[data-car-list]` |
-| 차량 카드 | `article.car-card[data-car-id]` |
-| 매물 번호 | 카드의 `data-listing-number` |
+| 게시판 행 | `article.car-card[data-car-id]` |
+| 매물 번호 | 행의 `data-listing-number` |
 | 제목 | `[data-field="title"]` |
 | 가격 | `data[data-field="price"]`의 `value` |
 | 연식 | `[data-field="model-year"]` |
 | 주행거리 | `[data-field="mileage"]` |
 | 연료 | `[data-field="fuel"]` |
 | 소재지 | `[data-field="location"]` |
-| 판매 상태 | 카드의 `data-status` |
+| 판매 상태 | 행의 `data-status` |
 | 상세 링크 | `[data-field="title"] a[href]` |
 | 다음 페이지 | `a[rel="next"]` |
 
@@ -162,34 +162,33 @@ print(records[:2])
 - 제목과 가격 같은 화면 문구를 데이터베이스 키로 사용하지 않습니다. `data-car-id` 또는 `data-listing-number`를 사용합니다.
 - 목록 수집과 상세 수집을 한꺼번에 병렬 실행하지 않습니다. 목록을 먼저 저장한 뒤 필요한 상세 페이지만 제한적으로 조회합니다.
 
-## 4. API 키 발급과 사용
+## 4. 공개 일일 API 키와 사용
 
-`/api/v1/*`의 정식 API는 모두 API 키가 필요합니다. `/healthz`, HTML 화면, 정적 파일은 공개입니다.
+`/api/v1/*`의 데이터 API에는 키가 필요합니다. `/api/v1/public-key`, `/healthz`, HTML 화면, 정적 파일은 공개입니다.
 
-### 메모리 모드 키
+### 오늘의 키 조회
 
-교사가 키를 한 번 발급합니다.
-
-```bash
-node scripts/create-api-key.mjs --source memory --name "1반 실습"
-```
-
-명령이 출력한 원문 키는 한 번만 표시됩니다. 서버를 시작할 때 그 값을 `UCAR_API_KEY`로 전달합니다.
+서버는 한국시간 날짜별 고정 키를 만들어 매일 자정에 자동 교체합니다. 23:00부터 다음 날 키도 공개하지만 자정 전에는 사용할 수 없습니다.
 
 ```bash
-export AUTODATA_API_KEY='발급된_ucar_v1_키'
-UCAR_API_KEY="$AUTODATA_API_KEY" DATA_SOURCE=memory npm start
+curl "$AUTODATA_BASE_URL/api/v1/public-key"
 ```
 
-### MySQL 모드 키
+자동화 프로그램은 실행 직전에 응답의 `data.current.api_key`를 읽습니다. 장시간 수집이 자정을 지나 `403`이 발생하면 현재 키를 다시 조회하고 체크포인트의 같은 요청을 한 번만 재시도합니다.
 
-스키마와 데이터 적재를 마친 뒤 키를 발급하는 편이 안전합니다.
+```bash
+export AUTODATA_API_KEY="$(curl -fsS "$AUTODATA_BASE_URL/api/v1/public-key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["current"]["api_key"])')"
+```
+
+### 선택적 장기 관리자 키
+
+일반 수강생에게는 필요하지 않습니다. 별도의 장기 관리자 키가 필요한 경우에만 기존 저장형 키를 발급합니다.
 
 ```bash
 node scripts/create-api-key.mjs create --source mysql --name "1반 실습"
 ```
 
-MySQL에는 원문이 아니라 키 prefix와 SHA-256 해시만 저장됩니다. 원문 키는 학생에게 별도의 안전한 채널로 전달합니다.
+MySQL에는 원문이 아니라 키 prefix와 SHA-256 해시만 저장됩니다. 이 키는 공개 일일 키와 별개입니다.
 
 ### 요청 헤더
 
@@ -809,8 +808,8 @@ print("직원 원본 식별자 비공개 검사 통과")
 - [ ] `/healthz`, `/cars`, `/robots.txt`를 교사 장치와 학생 장치에서 각각 확인했습니다.
 - [ ] MySQL 실습 전 기존 데이터를 백업하고 CSV 네 파일의 경로와 읽기 권한을 확인했습니다.
 - [ ] CSV 원시 timestamp 차이 1,000건과 MySQL `DATE` 비교 차이 999건을 각각 확인했습니다.
-- [ ] 반 또는 조별 API 키를 발급하고 원문 키를 안전한 채널로 한 번만 전달했습니다.
-- [ ] API 키를 노트북, Git, 채팅 로그, URL 쿼리에 기록하지 않도록 안내했습니다.
+- [ ] `/api/v1/public-key`의 현재 날짜·만료 시각과 23시 사전 공개 규칙을 확인했습니다.
+- [ ] 자동화가 자정의 `403`에서 현재 키를 갱신하고 같은 요청을 한 번만 재시도하도록 안내했습니다.
 - [ ] 요청 간격, 동시 실행 인원, 최대 수집 범위를 학생에게 공지했습니다.
 
 ### 수업 중
@@ -819,15 +818,14 @@ print("직원 원본 식별자 비공개 검사 통과")
 - [ ] HTML 수집기는 `rel=next`, API 수집기는 `links.next`와 `has_more`로 종료합니다.
 - [ ] 전체 수집은 커서와 체크포인트를 사용하고, 페이지마다 즉시 저장합니다.
 - [ ] 중복 수집에 대비해 `id` 또는 `listingNumber`로 UPSERT합니다.
-- [ ] 서버 로그에 API 원문 키나 직원 원본 필드를 출력하지 않습니다.
+- [ ] 서버 로그에 `DAILY_API_KEY_SECRET`이나 직원 원본 필드를 출력하지 않습니다.
 - [ ] 다수의 `401`, `403`, `5xx`, 연결 풀 포화가 발생하면 무조건 재시도하지 말고 원인을 먼저 확인합니다.
 - [ ] `AREA`를 실제 주소로 해석한 결과가 없는지 중간 산출물을 확인합니다.
 
 ### 수업 후
 
 - [ ] 학생 수집기를 먼저 중지하고 서버를 정상 종료합니다.
-- [ ] 더 이상 사용할 필요가 없는 MySQL API 키는 prefix로 폐기합니다.
-- [ ] 메모리 키는 `UCAR_API_KEY` 또는 `UCAR_API_KEYS`에서 제거한 뒤 서버를 재시작합니다.
+- [ ] 선택적 장기 MySQL API 키를 만들었다면 필요 없는 키를 prefix로 폐기합니다.
 - [ ] 노트북 출력과 제출 파일에서 직원 번호·원본 이름·입사일을 제거합니다.
 - [ ] 체크포인트와 수집 DB를 보존할지 삭제할지 수업 정책에 따라 결정합니다.
 - [ ] MySQL 컨테이너만 멈출 때는 `docker compose stop mysql`을 사용합니다.

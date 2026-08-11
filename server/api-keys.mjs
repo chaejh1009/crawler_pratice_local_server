@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 export const API_KEY_TOKEN_PREFIX = "ucar_v1_";
 export const API_KEY_HEADER = "x-api-key";
@@ -13,6 +13,31 @@ const API_KEY_PATTERN = new RegExp(
 const API_KEY_PREFIX_PATTERN = new RegExp(`^${API_KEY_TOKEN_PREFIX}${KEY_ID_PATTERN}$`);
 const MAX_PRESENTED_KEY_LENGTH = 128;
 const DUMMY_HASH = createHash("sha256").update("ucar-invalid-api-key").digest();
+const KST_OFFSET_MS = 9 * 60 * 60 * 1_000;
+const DAY_MS = 24 * 60 * 60 * 1_000;
+
+function kstParts(value) {
+  const date = normalizeDate(value) ?? new Date();
+  const shifted = new Date(date.getTime() + KST_OFFSET_MS);
+  return {
+    date: shifted.toISOString().slice(0, 10),
+    hour: shifted.getUTCHours(),
+  };
+}
+
+function nextKstDate(dateLabel) {
+  const start = Date.parse(`${dateLabel}T00:00:00+09:00`);
+  return new Date(start + DAY_MS + KST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function dailyWindow(dateLabel) {
+  const nextDate = nextKstDate(dateLabel);
+  return {
+    activeFrom: `${dateLabel}T00:00:00+09:00`,
+    expiresAt: `${nextDate}T00:00:00+09:00`,
+    nextDate,
+  };
+}
 
 function normalizeName(value, fallback = "classroom key") {
   const name = String(value ?? fallback).trim();
@@ -138,6 +163,88 @@ export function generateApiKey({ name = "classroom key", randomBytesFn = randomB
     rawKey,
     keyPrefix,
     keyHash: hashApiKey(rawKey),
+  };
+}
+
+export function createDailyApiKeyProvider({ secret, now = () => new Date() } = {}) {
+  const normalizedSecret = String(secret ?? "");
+  if (normalizedSecret.length < 32) {
+    throw new Error("DAILY_API_KEY_SECRET must contain at least 32 characters.");
+  }
+
+  function keyForDate(dateLabel) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateLabel))) {
+      throw new TypeError("Daily API key date must use YYYY-MM-DD.");
+    }
+    const keyId = createHmac("sha256", normalizedSecret)
+      .update(`autodata-lab:daily-key-id:v1:${dateLabel}`)
+      .digest()
+      .subarray(0, KEY_ID_BYTES)
+      .toString("hex");
+    const keySecret = createHmac("sha256", normalizedSecret)
+      .update(`autodata-lab:daily-key-secret:v1:${dateLabel}`)
+      .digest()
+      .toString("base64url");
+    const keyPrefix = `${API_KEY_TOKEN_PREFIX}${keyId}`;
+    return {
+      date: dateLabel,
+      rawKey: `${keyPrefix}_${keySecret}`,
+      keyPrefix,
+    };
+  }
+
+  function publicKeyRecord(dateLabel) {
+    const key = keyForDate(dateLabel);
+    const window = dailyWindow(dateLabel);
+    return {
+      date: dateLabel,
+      api_key: key.rawKey,
+      key_prefix: key.keyPrefix,
+      active_from: window.activeFrom,
+      expires_at: window.expiresAt,
+    };
+  }
+
+  function getPublicSchedule(at = now()) {
+    const currentTime = normalizeDate(at) ?? new Date();
+    const currentKst = kstParts(currentTime);
+    const window = dailyWindow(currentKst.date);
+    const expiresAtMs = Date.parse(window.expiresAt);
+    return {
+      timezone: "Asia/Seoul",
+      server_time: new Date(currentTime.getTime() + KST_OFFSET_MS).toISOString().replace("Z", "+09:00"),
+      rotation: "daily_at_00:00",
+      seconds_until_rotation: Math.max(0, Math.ceil((expiresAtMs - currentTime.getTime()) / 1_000)),
+      next_key_published_from: `${currentKst.date}T23:00:00+09:00`,
+      current: publicKeyRecord(currentKst.date),
+      next: currentKst.hour >= 23 ? publicKeyRecord(window.nextDate) : null,
+    };
+  }
+
+  async function authenticateRawKey(rawKey) {
+    const usedAt = normalizeDate(now()) ?? new Date();
+    const currentDate = kstParts(usedAt).date;
+    const current = keyForDate(currentDate);
+    const actualHash = typeof rawKey === "string" && rawKey.length <= MAX_PRESENTED_KEY_LENGTH
+      ? hashApiKey(rawKey)
+      : DUMMY_HASH;
+    const matches = timingSafeEqual(actualHash, hashApiKey(current.rawKey));
+    if (!parseApiKey(rawKey) || !matches) return { ok: false, reason: "invalid" };
+    return {
+      ok: true,
+      principal: {
+        id: `daily:${currentDate}`,
+        name: `public daily key ${currentDate}`,
+        keyPrefix: current.keyPrefix,
+      },
+      usedAt,
+    };
+  }
+
+  return {
+    keyForDate,
+    getPublicSchedule,
+    authenticateRawKey,
   };
 }
 
@@ -364,7 +471,7 @@ export function createMysqlApiKeyStore(executor) {
   };
 }
 
-export function createApiKeyService({ store, now = () => new Date(), markUsedIntervalMs = 60_000 } = {}) {
+export function createApiKeyService({ store, dailyApiKeyProvider, now = () => new Date(), markUsedIntervalMs = 60_000 } = {}) {
   if (!store || typeof store.findByPrefix !== "function" || typeof store.markUsed !== "function") {
     throw new TypeError("An API key store with findByPrefix() and markUsed() is required.");
   }
@@ -376,6 +483,10 @@ export function createApiKeyService({ store, now = () => new Date(), markUsedInt
   const lastMarkedAtById = new Map();
 
   async function authenticateRawKey(rawKey) {
+    if (dailyApiKeyProvider?.authenticateRawKey) {
+      const dailyResult = await dailyApiKeyProvider.authenticateRawKey(rawKey);
+      if (dailyResult.ok) return dailyResult;
+    }
     const parsed = parseApiKey(rawKey);
     const actualHash = typeof rawKey === "string" && rawKey.length <= MAX_PRESENTED_KEY_LENGTH
       ? hashApiKey(rawKey)

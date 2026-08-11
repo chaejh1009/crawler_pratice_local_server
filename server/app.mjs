@@ -409,7 +409,7 @@ async function handleApi(req, res, url, repository, apiKeyService, rateLimit) {
   throw new HttpError(404, "ENDPOINT_NOT_FOUND", "요청한 API 엔드포인트가 없습니다.");
 }
 
-async function handlePage(req, res, url, repository) {
+async function handlePage(req, res, url, repository, dailyApiKeyProvider) {
   const { pathname } = url;
   const baseUrl = requestBaseUrl(req);
   const isDatasetPage = pathname === "/"
@@ -425,9 +425,9 @@ async function handlePage(req, res, url, repository) {
     return;
   }
   if (pathname === "/cars") {
-    const query = parseCarListQuery(url.searchParams, { defaultPageSize: 24 });
+    const query = parseCarListQuery(url.searchParams, { defaultPageSize: 20 });
     const [{ items, total }, brands, locations] = await Promise.all([repository.listCars(query), repository.listBrands(), repository.listLocations()]);
-    sendHtml(res, 200, renderCarListPage({ items, total, query, brands, locations }), req.method);
+    sendHtml(res, 200, renderCarListPage({ items, total, query, brands, locations, baseUrl }), req.method);
     return;
   }
   if (pathname === "/changes") {
@@ -469,7 +469,11 @@ async function handlePage(req, res, url, repository) {
     sendHtml(res, 200, renderCarDetailPage({ car }), req.method);
     return;
   }
-  if (pathname === "/docs") { sendHtml(res, 200, renderDocsPage({ baseUrl }), req.method); return; }
+  if (pathname === "/docs") {
+    const dailyKeySchedule = dailyApiKeyProvider?.getPublicSchedule?.() ?? null;
+    sendHtml(res, 200, renderDocsPage({ baseUrl, dailyKeySchedule }), req.method);
+    return;
+  }
   if (pathname === "/learning-guide") {
     sendHtml(res, 200, renderLearningGuidePage({ baseUrl, stats: await repository.getStats() }), req.method);
     return;
@@ -482,7 +486,7 @@ async function handlePage(req, res, url, repository) {
     return;
   }
   if (pathname === "/robots.txt") {
-    send(res, 200, "User-agent: *\nAllow: /cars\nAllow: /changes\nAllow: /generation-runs\nAllow: /crawl-policy\nDisallow: /api/\nCrawl-delay: 1\n", baseHeaders("text/plain; charset=utf-8"), req.method);
+    send(res, 200, "User-agent: *\nAllow: /cars\nAllow: /changes\nAllow: /generation-runs\nAllow: /crawl-policy\nAllow: /api/v1/public-key\nDisallow: /api/\nCrawl-delay: 1\n", baseHeaders("text/plain; charset=utf-8"), req.method);
     return;
   }
   if (pathname === "/favicon.ico") { res.writeHead(204, { "Cache-Control": "public, max-age=86400" }); res.end(); return; }
@@ -492,6 +496,7 @@ async function handlePage(req, res, url, repository) {
 export function createApp({
   repository,
   apiKeyService,
+  dailyApiKeyProvider,
   logger = console,
   apiRateLimit,
   apiPreAuthRateLimit,
@@ -516,6 +521,18 @@ export function createApp({
       isApi = url.pathname.startsWith("/api/") || url.pathname === "/healthz";
       if (!["GET", "HEAD", "OPTIONS"].includes(method)) throw new HttpError(405, "METHOD_NOT_ALLOWED", "GET 요청만 지원합니다.", undefined, { Allow: "GET, HEAD, OPTIONS" });
       if (await handleStatic(req, res, url.pathname)) return;
+      if (url.pathname === "/api/v1/public-key") {
+        if (method === "OPTIONS") { res.writeHead(204, apiHeaders()); res.end(); return; }
+        if (!dailyApiKeyProvider?.getPublicSchedule) {
+          throw new HttpError(503, "DAILY_API_KEY_UNAVAILABLE", "공개 일일 API 키가 준비되지 않았습니다.");
+        }
+        const publicKeyRateLimit = apiPreAuthLimiter.consume(requestClientKey(req));
+        if (!publicKeyRateLimit.allowed) {
+          throw new HttpError(429, "RATE_LIMITED", "공개 키 조회 한도를 초과했습니다. Retry-After 이후 다시 요청하세요.", undefined, rateLimitHeaders(publicKeyRateLimit));
+        }
+        sendJson(res, 200, { data: dailyApiKeyProvider.getPublicSchedule() }, method, rateLimitHeaders(publicKeyRateLimit));
+        return;
+      }
       if (url.pathname === "/healthz") {
         const health = await repository.health();
         if (!health.ok) {
@@ -544,7 +561,7 @@ export function createApp({
           const credential = parseApiKeyCredential(req);
           const parsedKey = credential.ok ? parseApiKey(credential.rawKey) : null;
           if (parsedKey) {
-            credentialRateLimit = apiLimiter.consume(parsedKey.keyPrefix);
+            credentialRateLimit = apiLimiter.consume(`${parsedKey.keyPrefix}:${clientKey}`);
             if (!credentialRateLimit.allowed) {
               throw new HttpError(
                 429,
@@ -568,7 +585,7 @@ export function createApp({
             throw new HttpError(429, "RATE_LIMITED", "HTML 요청 한도를 초과했습니다. Retry-After 이후 다시 요청하세요.", undefined, rateLimitHeaders(rateLimit));
           }
         }
-        await handlePage(req, res, url, repository);
+        await handlePage(req, res, url, repository, dailyApiKeyProvider);
       }
     } catch (error) {
       const normalized = error instanceof HttpError

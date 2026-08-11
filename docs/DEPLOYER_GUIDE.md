@@ -2,10 +2,10 @@
 
 이 문서는 강사 PC 한 대에서 AutoData Lab을 **Node.js 메모리 모드**로 실행하고, 같은 로컬 네트워크에 있는 수강생에게 실습 서버를 제공하는 방법을 설명합니다. 별도 데이터베이스나 컨테이너 환경은 사용하지 않습니다.
 
-배포자가 수강생에게 전달할 것은 다음 두 가지뿐입니다.
+배포자가 수강생에게 직접 전달할 것은 서버 주소 하나뿐입니다.
 
 1. 서버 주소: 예) `http://192.168.0.23:4000`
-2. 수업용 API 키: `ucar_v1_...` 형태의 원문 키
+2. 실습 시작 경로: `/cars?page=1&page_size=20`, `/docs#api-explorer`
 
 프로젝트 폴더, `.env`, 딜러 코드 생성용 secret, 원본 CSV는 수강생에게 전달하지 않습니다.
 
@@ -74,9 +74,10 @@ Copy-Item .env.example .env
 | 값 | 서버 설정 이름 | 용도 | 수강생 전달 |
 | --- | --- | --- | --- |
 | 딜러 코드 생성용 secret | `DEALER_PUBLIC_ID_SECRET` | 내부 직원 식별자를 공개 딜러 코드로 가명처리 | 절대 전달하지 않음 |
-| 수업용 API 키 | `UCAR_API_KEY` | `/api/v1/*` 요청 인증 | 원문 키만 전달 |
+| 일일 키 생성용 secret | `DAILY_API_KEY_SECRET` | 날짜별 공개 API 키를 결정론적으로 생성 | 절대 전달하지 않음 |
+| 오늘의 공개 API 키 | 서버가 자동 생성 | `/api/v1/*` 요청 인증 | `/docs`와 `/api/v1/public-key`에 자동 공개 |
 
-두 값을 같게 만들거나 서로 바꾸어 넣지 마세요. `DEALER_PUBLIC_ID_SECRET`을 바꾸면 같은 담당자의 공개 딜러 코드도 달라지므로, 한 수업 데이터셋을 운영하는 동안에는 기존 값을 유지합니다.
+두 secret은 가능하면 서로 다른 난수로 만드세요. `DAILY_API_KEY_SECRET`이 비어 있으면 서버가 딜러 secret을 별도 HMAC 영역으로 사용하지만, 운영 역할 분리를 위해 별도 값을 권장합니다. 어느 secret이든 바꾸면 공개 식별자 또는 날짜별 키가 달라지므로 운영 중에는 유지합니다.
 
 ### 3.3 딜러 코드 생성용 secret 만들기
 
@@ -86,34 +87,30 @@ Node.js만으로 32바이트 난수를 64자리 16진수로 만듭니다. macOS,
 node --input-type=module -e "import { randomBytes } from 'node:crypto'; console.log(randomBytes(32).toString('hex'))"
 ```
 
-출력값을 `.env`의 `DEALER_PUBLIC_ID_SECRET=` 뒤에 붙입니다. 이 값이 없거나 32자보다 짧으면 서버가 안전을 위해 시작을 거부합니다.
+명령을 두 번 실행해 첫 출력은 `.env`의 `DEALER_PUBLIC_ID_SECRET=`, 두 번째 출력은 `DAILY_API_KEY_SECRET=` 뒤에 붙이는 것을 권장합니다. `DEALER_PUBLIC_ID_SECRET`이 없거나 32자보다 짧으면 서버가 시작을 거부합니다. `DAILY_API_KEY_SECRET`이 비어 있으면 딜러 secret을 대신 사용합니다.
 
 OpenSSL이 설치된 환경에서는 `openssl rand -hex 32`를 사용해도 됩니다. 사람이 만든 문장이나 수업명은 사용하지 않습니다.
 
-### 3.4 수업용 API 키 발급하기
+### 3.4 공개 일일 API 키 자동화
 
-다음 명령으로 키를 한 번 발급합니다.
+수강생용 키는 발급 명령이나 `.env`의 `UCAR_API_KEY`가 필요하지 않습니다. 서버가 `DAILY_API_KEY_SECRET`과 한국시간 날짜를 이용해 하루 동안 고정된 키를 만들고 다음 규칙으로 공개합니다.
+
+- 현재 키: `/docs`와 `/api/v1/public-key`에 항상 공개
+- 교체: 한국시간 매일 `00:00`
+- 다음 날 키: 매일 `23:00`부터 미리 공개
+- 사전 공개 키 활성화: 다음 날 `00:00`; 그 전에는 `403`
+
+서버 프로세스가 계속 실행 중이어도 요청 시각을 확인해 자동 교체하므로 cron이나 재시작 작업은 필요하지 않습니다. 다만 운영체제 시간이 틀리면 키 날짜도 틀어지므로 자동 시간 동기화를 켜고 수업 전에 다음 응답의 `server_time`, `current.date`, `expires_at`을 확인합니다.
 
 ```bash
-npm run api-key:create -- --source memory --name "1반 실습"
+curl http://127.0.0.1:4000/api/v1/public-key
 ```
 
-명령 끝에 표시되는 `ucar_v1_...` 원문 키를 즉시 안전한 곳에 복사하고 `.env`의 `UCAR_API_KEY=` 뒤에 붙입니다. 이 명령은 `.env`를 자동으로 수정하지 않으며, 원문 키는 발급할 때 한 번만 표시됩니다.
-
-반이나 조마다 별도 키를 쓰려면 각각 발급한 뒤 `UCAR_API_KEYS`에 쉼표로 구분하여 넣을 수 있습니다.
-
-```dotenv
-UCAR_API_KEY=
-UCAR_API_KEYS=ucar_v1_첫번째키,ucar_v1_두번째키
-```
-
-한 개의 키만 쓸 때는 `UCAR_API_KEY`를 사용하고 `UCAR_API_KEYS`는 비워 두면 됩니다.
-
-API 요청 한도는 키별로 계산됩니다. 한 키를 여러 수강생이 함께 쓰면 기본 분당 60회를 모두가 나누어 쓰므로, 인원이 많으면 조별 키를 발급하거나 수업 규모에 맞춰 요청 한도를 조정하세요. 조별 키를 쓰면 어느 조에서 반복 요청이 발생했는지도 공개 prefix로 구분하기 쉽습니다.
+장기 관리자 키가 별도로 필요한 경우에만 기존 `npm run api-key:create`와 `UCAR_API_KEY(S)`를 선택적으로 사용할 수 있습니다. 일반 수강생 배포에는 사용하지 않습니다.
 
 ### 3.5 메모리 모드 설정 확인하기
 
-`.env`에서 최소한 다음 항목을 확인합니다. 아래 값은 예시이며, 이미 만든 secret과 키를 실제 값으로 바꾸어야 합니다.
+`.env`에서 최소한 다음 항목을 확인합니다. 아래 값은 예시이며, 이미 만든 두 secret을 실제 값으로 바꾸어야 합니다.
 
 ```dotenv
 DATA_SOURCE=memory
@@ -121,8 +118,8 @@ HOST=0.0.0.0
 PORT=4000
 MEMORY_CAR_COUNT=5000
 
-UCAR_API_KEY=ucar_v1_발급받은_원문_키
 DEALER_PUBLIC_ID_SECRET=위에서_만든_64자리_난수
+DAILY_API_KEY_SECRET=별도로_만든_64자리_난수
 
 CSV_REQUIRED=false
 EMPLOYEE_CSV_PATH=
@@ -243,13 +240,10 @@ curl --include "$AUTODATA_BASE_URL/cars?page_size=5"
 }
 ```
 
-API 키 원문을 현재 터미널의 수강생 예제용 변수에 넣어 인증 경로도 확인합니다. 실제 키가 셸 명령 기록에 남지 않도록 숨김 입력을 사용합니다.
+공개 경로에서 오늘의 키를 자동으로 읽어 인증 경로도 확인합니다.
 
 ```bash
-printf 'API key: '
-read -r -s AUTODATA_API_KEY
-printf '\n'
-export AUTODATA_API_KEY
+export AUTODATA_API_KEY="$(curl -fsS "$AUTODATA_BASE_URL/api/v1/public-key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["current"]["api_key"])')"
 curl --include "$AUTODATA_BASE_URL/api/v1/stats" \
   -H "X-API-Key: $AUTODATA_API_KEY"
 ```
@@ -258,16 +252,14 @@ Windows PowerShell에서는 다음처럼 확인합니다.
 
 ```powershell
 $env:AUTODATA_BASE_URL = 'http://127.0.0.1:4000'
-$secureKey = Read-Host 'API key' -AsSecureString
-$env:AUTODATA_API_KEY = [System.Net.NetworkCredential]::new('', $secureKey).Password
-Remove-Variable secureKey
+$env:AUTODATA_API_KEY = (curl.exe -fsS "${env:AUTODATA_BASE_URL}/api/v1/public-key" | ConvertFrom-Json).data.current.api_key
 curl.exe --include "${env:AUTODATA_BASE_URL}/api/v1/stats" `
   -H "X-API-Key: $env:AUTODATA_API_KEY"
 ```
 
 여기서 변수 이름을 구분하세요.
 
-- 서버 `.env`: `UCAR_API_KEY`
+- 서버 `.env`: `DAILY_API_KEY_SECRET`(공개 키의 원문이 아님)
 - 강사와 수강생의 요청 예제: `AUTODATA_API_KEY`
 - 강사와 수강생의 서버 주소: `AUTODATA_BASE_URL`
 
@@ -301,7 +293,7 @@ ipconfig
 
 ```text
 http://192.168.0.23:4000/healthz
-http://192.168.0.23:4000/cars?page_size=5
+http://192.168.0.23:4000/cars?page=1&page_size=20
 ```
 
 ## 7. 수강생에게 전달할 내용
@@ -310,28 +302,27 @@ http://192.168.0.23:4000/cars?page_size=5
 
 ```text
 AutoData Lab 서버 주소: http://192.168.0.23:4000
-수업용 API 키: ucar_v1_...
+HTML 시작: http://192.168.0.23:4000/cars?page=1&page_size=20
+API 키·크롤러: http://192.168.0.23:4000/docs#api-explorer
+자동화 키 조회: http://192.168.0.23:4000/api/v1/public-key
 HTML 요청 간격: 최소 1초
 API 키 사용 위치: X-API-Key 요청 헤더
 ```
 
-수강생은 받은 값을 자신의 터미널 환경 변수에 둡니다. 실제 키는 명령 기록에 직접 쓰지 않고 숨김 입력으로 받습니다.
+수강생은 서버 주소만 환경 변수에 두고 오늘의 키는 실행 직전에 공개 경로에서 읽습니다.
 
 ```bash
 export AUTODATA_BASE_URL='http://192.168.0.23:4000'
-printf 'API key: '
-read -r -s AUTODATA_API_KEY
-printf '\n'
-export AUTODATA_API_KEY
+curl "$AUTODATA_BASE_URL/api/v1/public-key"
 ```
 
 수강생에게 다음 규칙도 함께 안내합니다.
 
-- 키를 URL 쿼리 문자열, 소스 코드, 노트북 출력, Git, 제출물에 넣지 않습니다.
+- 공개 일일 키를 URL 쿼리나 소스 코드에 고정하지 않고 `/api/v1/public-key`에서 갱신합니다.
 - `X-API-Key` 또는 `Authorization: Bearer` 중 한 헤더만 사용합니다.
 - HTML 요청 사이에는 최소 1초를 기다립니다.
 - HTML은 `a[rel="next"]`, JSON API는 응답의 `links.next`를 따라갑니다.
-- 기본 API 제한은 키별 분당 60회입니다. `429`가 오면 요청을 멈추고 `Retry-After`만큼 기다립니다.
+- 기본 API 제한은 키 prefix와 클라이언트 주소 조합별 분당 60회입니다. `429`가 오면 요청을 멈추고 `Retry-After`만큼 기다립니다.
 - 한꺼번에 과도하게 병렬 요청하지 않고 페이지 또는 커서 묶음별로 저장합니다.
 - 이 서버의 수집 허가는 이 수업용 호스트에만 적용되며 제3자 사이트에는 적용되지 않습니다.
 
@@ -346,18 +337,18 @@ export AUTODATA_API_KEY
 | 경로 | 확인 내용 |
 | --- | --- |
 | `/healthz` | 서버와 메모리 저장소 상태 |
-| `/cars` | HTML 차량 목록과 페이지네이션 |
+| `/cars?page=1&page_size=20` | 페이지당 20건의 HTML 게시판과 다음·이전 링크 |
 | `/changes` | 고정 snapshot 변경 로그 |
 | `/generation-runs` | 메모리 데이터 생성 상태 이벤트 |
 | `/crawl-policy` | 이 서버에만 적용되는 수집 허용 범위 |
-| `/docs` | 브라우저용 API 문서 |
+| `/docs#api-explorer` | API 키 입력·다중 페이지 크롤러 |
 | `/learning-guide` | 브라우저용 학습 가이드 |
 
 메모리 모드의 데이터는 서버 시작 시 만들어지는 고정 합성 데이터입니다. 별도 데이터 생성 명령을 실행하지 않습니다.
 
 ### 8.2 요청 제한 조정
 
-기본값은 인증 API 키별 분당 60회, 인증 전 요청은 클라이언트별 분당 120회, HTML은 클라이언트별 분당 120회입니다.
+기본값은 인증 API의 `키 prefix + 클라이언트 주소` 조합별 분당 60회, 인증 전 요청은 클라이언트별 분당 120회, HTML은 클라이언트별 분당 120회입니다. 따라서 같은 일일 공개 키를 쓰는 서로 다른 수강생 장치는 각자 한도를 가집니다.
 
 ```dotenv
 API_RATE_LIMIT_PER_MINUTE=60
@@ -367,17 +358,11 @@ HTML_RATE_LIMIT_PER_MINUTE=120
 
 수강 인원에 맞춰 값을 바꿀 수 있지만, 너무 높이면 강사 PC와 네트워크에 순간 부하가 몰릴 수 있습니다. 변경 후에는 서버를 정상 종료하고 다시 시작해야 적용됩니다. HTML의 최소 1초 요청 간격 안내는 제한값을 높이더라도 유지합니다.
 
-### 8.3 키 교체 또는 폐기
+### 8.3 일일 키 교체 관찰
 
-메모리 모드에는 별도 키 저장소가 없습니다. 키를 더 이상 사용하지 않으려면 `.env`의 `UCAR_API_KEY` 또는 `UCAR_API_KEYS`에서 해당 값을 제거하고 서버를 재시작합니다.
+일일 키는 서버 재시작 없이 한국시간 자정에 자동 교체됩니다. 23:00 이후 `/docs`와 `/api/v1/public-key`에 다음 날 키가 보이는지, 자정 뒤 `current`가 그 키로 바뀌는지 확인합니다. 자정에 진행 중인 수집기는 `403`에서 현재 키를 다시 읽고 실패한 요청을 한 번만 재시도해야 합니다.
 
-새 키로 교체할 때는 다음 순서를 따릅니다.
-
-1. 새 키를 발급하고 안전하게 보관합니다.
-2. `.env`의 서버 키를 새 값으로 바꿉니다.
-3. 기존 서버를 정상 종료한 뒤 다시 시작합니다.
-4. 새 키로 API 호출을 검증합니다.
-5. 수강생에게 새 키만 안전하게 전달합니다.
+`DAILY_API_KEY_SECRET`을 수동 변경하면 그날의 현재 키까지 즉시 달라집니다. 긴급 교체가 아니라면 수업 중 변경하지 마세요. 변경해야 한다면 서버를 재시작하고 수강생에게 공개 키 재조회를 공지합니다.
 
 ## 9. 정상 종료와 재시작
 
@@ -386,7 +371,7 @@ HTML_RATE_LIMIT_PER_MINUTE=120
 1. 수강생에게 크롤러와 API 클라이언트를 중지하게 합니다.
 2. 강사 PC의 서버 터미널에서 `Ctrl+C`를 한 번 누릅니다.
 3. 종료 메시지가 표시되고 터미널 프롬프트가 돌아올 때까지 기다립니다.
-4. 더 이상 쓸 수업 키는 `.env`에서 제거합니다.
+4. 선택적 장기 키를 만들었다면 더 이상 쓸 키를 `.env`에서 제거합니다.
 5. `.env`, secret, CSV 원본의 보관 또는 폐기 정책을 확인합니다.
 
 강제 종료나 노트북 전원 차단보다 `Ctrl+C` 정상 종료를 사용하세요. 다시 시작할 때는 같은 프로젝트 폴더에서 `npm start`를 실행합니다. 같은 `DEALER_PUBLIC_ID_SECRET`을 유지하면 공개 딜러 코드도 안정적으로 유지됩니다.
@@ -396,11 +381,11 @@ HTML_RATE_LIMIT_PER_MINUTE=120
 - 이 서버는 신뢰 가능한 로컬 수업망용입니다. 인터넷에 직접 공개하지 않습니다.
 - 강사와 수강생이 사용하는 HTTP 연결은 암호화되지 않으므로 공용 Wi-Fi에서 운영하지 않습니다.
 - `.env` 전체, `DEALER_PUBLIC_ID_SECRET`, CSV 원본을 수강생이나 공개 저장소에 공유하지 않습니다.
-- API 키 원문은 필요한 수강생에게만 전달하고 화면 캡처, 녹화 화면, URL, 로그에 남기지 않습니다.
+- 일일 API 키 자체는 의도적으로 공개하지만, 이를 만드는 `DAILY_API_KEY_SECRET`은 `.env`, 화면 캡처, 녹화, 로그에 절대 노출하지 않습니다.
 - 공개 딜러 코드와 마스킹 이름은 가명처리이며 익명화가 아닙니다.
 - 직원 원본 이름, 직원번호, 입사일을 HTML/API 응답이나 제출물에 추가하지 않습니다.
 - 방화벽은 가능하면 현재 수업 LAN에서 들어오는 TCP 4000번 연결만 허용합니다.
-- 수업 종료 후 계속 제공할 이유가 없으면 서버를 종료하고 키를 제거합니다.
+- 수업 종료 후 계속 제공할 이유가 없으면 서버를 종료합니다.
 
 ## 11. 문제 해결
 
@@ -409,8 +394,8 @@ HTML_RATE_LIMIT_PER_MINUTE=120
 | `node` 또는 `npm` 명령을 찾을 수 없음 | Node.js 22.13.0 이상 설치 여부와 터미널 재시작 확인 |
 | `npm ci` 실패 | 인터넷 연결, 기관 프록시, npm registry 접근 정책 확인 |
 | `DEALER_PUBLIC_ID_SECRET` 오류로 시작 실패 | `.env`에 32자 이상의 예측 불가능한 값을 넣었는지 확인 |
-| 서버는 시작하지만 API가 항상 `401` | `.env`의 `UCAR_API_KEY`가 비어 있지 않은지 확인하고 재시작 |
-| API가 `403 API_KEY_INVALID` | 전달한 키의 오타, 앞뒤 공백, 서로 다른 키 사용 여부 확인 |
+| 공개 키 경로가 `503` | `DAILY_API_KEY_SECRET` 또는 fallback인 `DEALER_PUBLIC_ID_SECRET`이 32자 이상인지 확인 |
+| API가 `403 API_KEY_INVALID` | `/api/v1/public-key`를 다시 읽고 `current.api_key`인지 확인. 23시에 보이는 `next`는 자정 전 사용할 수 없음 |
 | 수강생만 연결할 수 없음 | `HOST=0.0.0.0`, 같은 LAN, 정확한 사설 IP·포트, 강사 PC 방화벽 확인 |
 | 같은 Wi-Fi인데 연결할 수 없음 | 공유기의 AP isolation 또는 client isolation, 게스트 Wi-Fi 사용 여부 확인 |
 | `EADDRINUSE`로 시작 실패 | 4000번 포트를 쓰는 기존 서버를 정상 종료하거나 `.env`의 `PORT`를 변경 |
@@ -430,7 +415,7 @@ HTML_RATE_LIMIT_PER_MINUTE=120
 - [ ] Node.js 22.13.0 이상과 npm을 확인했습니다.
 - [ ] 프로젝트 폴더에서 `npm ci`를 완료했습니다.
 - [ ] `.env.example`을 `.env`로 복사하고 접근 권한을 제한했습니다.
-- [ ] `DEALER_PUBLIC_ID_SECRET`과 API 키를 서로 다른 값으로 설정했습니다.
+- [ ] `DEALER_PUBLIC_ID_SECRET`과 `DAILY_API_KEY_SECRET`을 서로 다른 난수로 설정했습니다.
 - [ ] `DATA_SOURCE=memory`, `HOST=0.0.0.0`, `PORT`, `MEMORY_CAR_COUNT`를 확인했습니다.
 - [ ] 선택 CSV를 사용할 경우 네 절대 경로와 파일 권한을 확인했습니다.
 
@@ -440,13 +425,13 @@ HTML_RATE_LIMIT_PER_MINUTE=120
 - [ ] `npm start` 후 `/healthz`가 `ok: true`, `source: memory`를 반환합니다.
 - [ ] 공개 HTML과 인증 API를 강사 PC에서 확인했습니다.
 - [ ] 수강생 장치에서 LAN 주소의 `/healthz`와 `/cars`를 확인했습니다.
-- [ ] 서버 주소와 API 키만 수강생에게 전달했습니다.
-- [ ] 요청 간격, 429 처리, 키 보안, 허용 범위를 안내했습니다.
+- [ ] 서버 주소와 HTML·API 크롤링 시작 경로를 수강생에게 전달했습니다.
+- [ ] 자정 교체·23시 사전 공개·403 갱신, 요청 간격, 429 처리, 허용 범위를 안내했습니다.
 
 ### 수업 중과 종료
 
 - [ ] 서버 터미널, 강사 PC 전원, LAN 연결을 유지하고 있습니다.
 - [ ] 과도한 병렬 요청과 반복되는 401·403·429를 관찰합니다.
 - [ ] 수강생 크롤러를 먼저 중지한 뒤 서버를 `Ctrl+C`로 종료합니다.
-- [ ] 사용이 끝난 키를 `.env`에서 제거했습니다.
+- [ ] 선택적 장기 키를 만들었다면 사용이 끝난 키를 `.env`에서 제거했습니다.
 - [ ] `.env`, secret, CSV 원본이 제출물·로그·공개 저장소에 없는지 확인했습니다.
