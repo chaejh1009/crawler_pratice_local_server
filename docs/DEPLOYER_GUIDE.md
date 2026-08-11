@@ -5,7 +5,7 @@
 배포자가 수강생에게 직접 전달할 것은 서버 주소 하나뿐입니다.
 
 1. 서버 주소: 예) `http://192.168.0.23:4000`
-2. 실습 시작 경로: `/cars?page=1&page_size=20`, `/docs#api-explorer`
+2. 실습 시작 경로: `/cars?page=1&page_size=20`, `/faqs`, `/docs#api-explorer`
 
 프로젝트 폴더, `.env`, 딜러 코드 생성용 secret, 원본 CSV는 수강생에게 전달하지 않습니다.
 
@@ -342,18 +342,19 @@ curl "$AUTODATA_BASE_URL/api/v1/public-key"
 | 경로 | 확인 내용 |
 | --- | --- |
 | `/healthz` | 서버와 메모리 저장소 상태 |
-| `/cars?page=1&page_size=20` | 최초 최대 10,000건 중 페이지당 20건의 공개 HTML 게시판과 다음·이전 링크 |
+| `/cars?page=1&page_size=20` | 실시간 최신 최대 10,000건 중 페이지당 20건의 공개 HTML 게시판과 다음·이전 링크 |
+| `/faqs` | 8개 자동차 회사의 공식 출처 기반 FAQ와 브랜드 필터 |
 | `/changes` | 고정 snapshot 변경 로그 |
 | `/generation-runs` | 메모리 데이터 생성 상태 이벤트 |
 | `/crawl-policy` | 이 서버에만 적용되는 수집 허용 범위 |
 | `/docs#api-explorer` | API 키 입력·다중 페이지 크롤러 |
 | `/learning-guide` | 브라우저용 학습 가이드 |
 
-메모리 모드는 서버 시작 시 초기 합성 데이터를 만든 뒤, 기본적으로 4분마다 28건을 추가하여 24시간에 약 10,080건을 적재합니다. `/api/v1/stats`의 `carCount`, `/changes`, `/generation-runs`에서 증가를 확인할 수 있습니다. 별도의 `npm run generate:watch`를 함께 실행하지 마세요. 잠시 멈추려면 `.env`의 `AUTO_GENERATE=false`로 바꾸고 서버를 재시작합니다.
+메모리 모드는 서버 시작 시 초기 합성 데이터를 만든 뒤, 기본적으로 4분마다 28건을 추가하여 24시간에 약 10,080건을 적재합니다. 메인 화면의 **마지막 데이터 갱신**, `/api/v1/stats`의 `carCount`·`latestDataUpdatedAt`, `/changes`, `/generation-runs`에서 증가와 갱신 시각을 확인할 수 있습니다. 별도의 `npm run generate:watch`를 함께 실행하지 마세요. 잠시 멈추려면 `.env`의 `AUTO_GENERATE=false`로 바꾸고 서버를 재시작합니다.
 
 메모리 적재는 디스크에 영속화되지 않습니다. 서버를 재시작하면 `MEMORY_CAR_COUNT`의 초기 상태로 돌아가고 주기 생성도 새로 시작하므로, 장기 보존이 필요한 결과는 수강생 수집 DB 또는 네이티브 데이터베이스 모드에 저장해야 합니다.
 
-공개 `/cars`와 `/cars/:id`는 ID 순으로 고정한 최초 최대 10,000건만 노출합니다. 필터·정렬로 이 범위를 우회할 수 없습니다. 전체 차량 JSON은 `/api/v1/public-key`에서 받은 현재 키가 있어야 `/api/v1/cars*`로 조회할 수 있다는 점을 수강생에게 함께 고지하세요.
+공개 `/cars`와 `/cars/:id`는 조회 시점에 ID가 가장 큰 최신 최대 10,000건을 노출합니다. 새 데이터가 생성되면 공개 창에 들어오고 가장 오래된 데이터가 빠지며, 필터·정렬은 이 실시간 범위 안에서 동작합니다. 여러 HTML 페이지를 수집하는 동안 창이 이동할 수 있으므로 전체 차량의 고정 snapshot은 `/api/v1/public-key`에서 받은 현재 키로 `/api/v1/cars*`를 조회해야 한다는 점을 수강생에게 함께 고지하세요.
 
 ### 8.2 요청 제한 조정
 
@@ -436,8 +437,8 @@ HTML_RATE_LIMIT_PER_MINUTE=120
 
 - [ ] `npm run check`와 `npm test` 결과를 확인했습니다.
 - [ ] `npm start` 후 `/healthz`가 `ok: true`, `source: memory`를 반환합니다.
-- [ ] 공개 HTML과 인증 API를 강사 PC에서 확인했습니다.
-- [ ] 수강생 장치에서 LAN 주소의 `/healthz`와 `/cars`를 확인했습니다.
+- [ ] 공개 HTML, 브랜드 FAQ와 인증 API를 강사 PC에서 확인했습니다.
+- [ ] 수강생 장치에서 LAN 주소의 `/healthz`, `/cars`, `/faqs`를 확인했습니다.
 - [ ] 서버 주소와 HTML·API 크롤링 시작 경로를 수강생에게 전달했습니다.
 - [ ] 자정 교체·23시 사전 공개·403 갱신, 요청 간격, 429 처리, 허용 범위를 안내했습니다.
 

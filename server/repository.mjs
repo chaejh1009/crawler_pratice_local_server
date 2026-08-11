@@ -159,7 +159,11 @@ function dealerCode(employeeNo, secret) {
 
 function toIsoString(value) {
   if (value instanceof Date) return value.toISOString();
-  const date = new Date(value);
+  const text = String(value ?? "");
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/.test(text)
+    ? `${text.replace(" ", "T")}Z`
+    : text;
+  const date = new Date(normalized);
   return Number.isNaN(date.getTime()) ? String(value ?? "") : date.toISOString();
 }
 
@@ -459,6 +463,7 @@ export function createMemoryRepository({
         generationRunEventCount: generationRunEvents.length,
         latestGenerationRunEventId: generationRunEvents.at(-1)?.eventId ?? 0,
         latestChangeSeq: changes.at(-1)?.seq ?? 0,
+        latestDataUpdatedAt: changes.at(-1)?.occurredAt ?? null,
         datasetEpoch: "memory-v1",
         source: "memory",
       };
@@ -511,7 +516,7 @@ export function createMemoryRepository({
       assertOpen();
       const query = normalizeListOptions(options);
       const datasetLimit = normalizeDatasetLimit(options.datasetLimit);
-      const publicDataset = datasetLimit === null ? cars : cars.slice(0, datasetLimit);
+      const publicDataset = datasetLimit === null ? cars : cars.slice(-datasetLimit);
       const filtered = publicDataset.filter((car) => carMatches(car, query)).sort(compareCars(query.sort));
       const offset = (query.page - 1) * query.pageSize;
       return { items: filtered.slice(offset, offset + query.pageSize), total: filtered.length };
@@ -567,7 +572,7 @@ export function createMemoryRepository({
       const normalized = Number(id);
       if (!Number.isSafeInteger(normalized) || normalized <= 0) return null;
       const datasetLimit = normalizeDatasetLimit(options.datasetLimit);
-      if (datasetLimit !== null && !cars.slice(0, datasetLimit).some((car) => car.id === normalized)) return null;
+      if (datasetLimit !== null && !cars.slice(-datasetLimit).some((car) => car.id === normalized)) return null;
       return carById.get(normalized) ?? null;
     },
     async appendSyntheticCars({ count: requestedCount = 28, runKey, now = new Date() } = {}) {
@@ -719,14 +724,18 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
         (SELECT COUNT(*) FROM generation_runs WHERE status <> 'SUCCESS') AS incompleteGenerationRunCount,
         (SELECT COUNT(*) FROM generation_run_events) AS generationRunEventCount,
         (SELECT COALESCE(MAX(event_id), 0) FROM generation_run_events) AS latestGenerationRunEventId,
-        (SELECT COALESCE(MAX(c.seq), 0) FROM listing_change_log c INNER JOIN generation_runs r ON r.id = c.run_id WHERE r.status = 'SUCCESS') AS latestChangeSeq`),
+        (SELECT COALESCE(MAX(c.seq), 0) FROM listing_change_log c INNER JOIN generation_runs r ON r.id = c.run_id WHERE r.status = 'SUCCESS') AS latestChangeSeq,
+        (SELECT MAX(c.occurred_at) FROM listing_change_log c INNER JOIN generation_runs r ON r.id = c.run_id WHERE r.status = 'SUCCESS') AS latestDataUpdatedAt`),
         pool.execute("SELECT dataset_epoch AS datasetEpoch FROM dataset_state WHERE id = 1 AND status = 'READY' LIMIT 1"),
       ]);
       if (!stateRows.length) throw new Error("dataset_state가 없습니다. db:seed를 다시 실행하세요.");
-      return Object.fromEntries(Object.entries(rows[0]).map(([key, value]) => [key, Number(value)]).concat([
-        ["datasetEpoch", String(stateRows[0].datasetEpoch)],
-        ["source", "mysql"],
-      ]));
+      return Object.fromEntries(Object.entries(rows[0])
+        .filter(([key]) => key !== "latestDataUpdatedAt")
+        .map(([key, value]) => [key, Number(value)]).concat([
+          ["latestDataUpdatedAt", rows[0].latestDataUpdatedAt ? toIsoString(rows[0].latestDataUpdatedAt) : null],
+          ["datasetEpoch", String(stateRows[0].datasetEpoch)],
+          ["source", "mysql"],
+        ]));
     },
     async listBrands() {
       assertOpen();
@@ -791,7 +800,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
       if (datasetLimit !== null) {
         conditions.push(`l.id IN (
           SELECT public_vehicle_listing.id
-          FROM (SELECT id FROM vehicle_listings ORDER BY id ASC LIMIT ${datasetLimit}) AS public_vehicle_listing
+          FROM (SELECT id FROM vehicle_listings ORDER BY id DESC LIMIT ${datasetLimit}) AS public_vehicle_listing
         )`);
       }
       const fullText = toFullTextQuery(query.q);
@@ -899,7 +908,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
       const datasetLimit = normalizeDatasetLimit(options.datasetLimit);
       const publicBoundary = datasetLimit === null ? "" : ` AND l.id IN (
         SELECT public_vehicle_listing.id
-        FROM (SELECT id FROM vehicle_listings ORDER BY id ASC LIMIT ${datasetLimit}) AS public_vehicle_listing
+        FROM (SELECT id FROM vehicle_listings ORDER BY id DESC LIMIT ${datasetLimit}) AS public_vehicle_listing
       )`;
       const [rows] = await pool.execute(`${CAR_SELECT} WHERE l.id = ?${publicBoundary} LIMIT 1`, [normalized]);
       return rows.length ? mapMysqlCar(rows[0], normalizedDealerSecret) : null;

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 import { parseApiKey, parseApiKeyCredential } from "./api-keys.mjs";
+import { FAQ_BRANDS, faqBrandBySlug, listBrandFaqs } from "./faq-data.mjs";
 
 import {
   renderCarDetailPage,
@@ -9,6 +10,7 @@ import {
   renderCrawlPolicyPage,
   renderDocsPage,
   renderErrorPage,
+  renderFaqPage,
   renderGenerationRunsPage,
   renderHomePage,
   renderLearningGuidePage,
@@ -467,6 +469,20 @@ async function handlePage(req, res, url, repository, dailyApiKeyProvider) {
     sendHtml(res, 200, renderGenerationRunsPage({ items, afterId, untilId, datasetEpoch, limit, hasMore }), req.method);
     return;
   }
+  if (pathname === "/faqs") {
+    const selectedBrand = String(url.searchParams.get("brand") ?? "").trim().toLowerCase();
+    if (selectedBrand && !faqBrandBySlug(selectedBrand)) {
+      throw new HttpError(400, "INVALID_QUERY", "지원하지 않는 자동차 브랜드입니다.", { field: "brand" });
+    }
+    sendHtml(res, 200, renderFaqPage({
+      brands: FAQ_BRANDS,
+      allItems: listBrandFaqs(),
+      items: listBrandFaqs(selectedBrand),
+      selectedBrand,
+      baseUrl,
+    }), req.method);
+    return;
+  }
   const carMatch = pathname.match(/^\/cars\/(\d+)$/);
   if (carMatch) {
     const car = await repository.getCar(Number(carMatch[1]), { datasetLimit: PUBLIC_HTML_CAR_LIMIT });
@@ -491,7 +507,7 @@ async function handlePage(req, res, url, repository, dailyApiKeyProvider) {
     return;
   }
   if (pathname === "/robots.txt") {
-    send(res, 200, "User-agent: *\nAllow: /cars\nAllow: /changes\nAllow: /generation-runs\nAllow: /crawl-policy\nAllow: /api/v1/public-key\nDisallow: /api/\nCrawl-delay: 1\n", baseHeaders("text/plain; charset=utf-8"), req.method);
+    send(res, 200, "User-agent: *\nAllow: /cars\nAllow: /faqs\nAllow: /changes\nAllow: /generation-runs\nAllow: /crawl-policy\nAllow: /api/v1/public-key\nDisallow: /api/\nCrawl-delay: 1\n", baseHeaders("text/plain; charset=utf-8"), req.method);
     return;
   }
   if (pathname === "/favicon.ico") { res.writeHead(204, { "Cache-Control": "public, max-age=86400" }); res.end(); return; }
@@ -581,6 +597,7 @@ export function createApp({
         await handleApi(req, res, url, repository, apiKeyService, credentialRateLimit);
       } else {
         const isCrawlableDataset = url.pathname.startsWith("/cars")
+          || url.pathname === "/faqs"
           || url.pathname === "/changes"
           || url.pathname === "/generation-runs";
         if (isCrawlableDataset) {

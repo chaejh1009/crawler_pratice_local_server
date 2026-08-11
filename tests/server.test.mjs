@@ -70,7 +70,10 @@ test("home and learning pages clearly use the used-car domain", async () => {
   const home = await readHtml(homeResponse);
   assert.match(home, /<title>중고차 수집 실습 홈 · AutoData Lab<\/title>/);
   assert.match(home, /href="\/cars"/);
+  assert.match(home, /href="\/faqs"/);
   assert.match(home, /직원·업무영역 CSV/);
+  assert.match(home, /data-last-data-updated-at="[^"]+"/);
+  assert.match(home, /마지막 데이터 갱신/);
 
   const guideResponse = await request("/learning-guide");
   assert.equal(guideResponse.status, 200);
@@ -99,7 +102,7 @@ test("HTML car board defaults to 20 rows and publishes a crawl start URL", async
   const html = await readHtml(response);
   assert.match(html, /class="board-list"/);
   assert.match(html, /data-public-result-limit="10000"/);
-  assert.match(html, /토큰 없이 공개된 최대 10,000건/);
+  assert.match(html, /갱신되는 최신 최대 10,000건/);
   assert.match(html, /HTML CRAWL START URL/);
   assert.match(html, /\/cars\?page=1&amp;page_size=20/);
   const rows = html.match(/<article\b[^>]*\bboard-list__row\b[^>]*\bdata-car-id="[^"]+"[^>]*>/gi) ?? [];
@@ -108,7 +111,7 @@ test("HTML car board defaults to 20 rows and publishes a crawl start URL", async
   assert.match(html, /rel="next"[^>]+page=2[^>]+page_size=20/);
 });
 
-test("public HTML repository scope is fixed to the first 10,000 cars while keyed API scope stays complete", async () => {
+test("public HTML repository scope rolls forward with the latest 10,000 cars while keyed API scope stays complete", async () => {
   const largeRepository = createMemoryRepository({ count: 10_025 });
   try {
     const publicLastPage = await largeRepository.listCars({
@@ -119,7 +122,7 @@ test("public HTML repository scope is fixed to the first 10,000 cars while keyed
     });
     assert.equal(publicLastPage.total, 10_000);
     assert.equal(publicLastPage.items.length, 100);
-    assert.ok(publicLastPage.items.every((car) => car.id <= 10_000));
+    assert.ok(publicLastPage.items.every((car) => car.id >= 26 && car.id <= 10_025));
 
     const publicOverflow = await largeRepository.listCars({
       page: 101,
@@ -128,7 +131,9 @@ test("public HTML repository scope is fixed to the first 10,000 cars while keyed
     });
     assert.equal(publicOverflow.total, 10_000);
     assert.equal(publicOverflow.items.length, 0);
-    assert.equal(await largeRepository.getCar(10_001, { datasetLimit: 10_000 }), null);
+    assert.equal(await largeRepository.getCar(25, { datasetLimit: 10_000 }), null);
+    assert.ok(await largeRepository.getCar(26, { datasetLimit: 10_000 }));
+    assert.ok(await largeRepository.getCar(10_025, { datasetLimit: 10_000 }));
 
     const authenticatedScope = await largeRepository.listCars({ page: 1, pageSize: 100 });
     assert.equal(authenticatedScope.total, 10_025);
@@ -146,6 +151,8 @@ test("public HTML repository scope is fixed to the first 10,000 cars while keyed
     assert.equal(afterGeneration.changeCount, before.changeCount + 28);
     assert.equal(afterGeneration.generationRunCount, before.generationRunCount + 1);
     assert.equal(afterGeneration.generationRunEventCount, before.generationRunEventCount + 2);
+    assert.equal(afterGeneration.latestDataUpdatedAt, "2026-08-11T14:00:00.027Z");
+    assert.ok(new Date(afterGeneration.latestDataUpdatedAt) > new Date(before.latestDataUpdatedAt));
     assert.equal(expectedDailyGeneration(), 10_080);
 
     const repeated = await largeRepository.appendSyntheticCars({
@@ -156,9 +163,13 @@ test("public HTML repository scope is fixed to the first 10,000 cars while keyed
     assert.equal(repeated.skipped, true);
     assert.equal((await largeRepository.getStats()).carCount, afterGeneration.carCount);
 
-    const stillPubliclyLimited = await largeRepository.listCars({ page: 1, pageSize: 100, datasetLimit: 10_000 });
-    assert.equal(stillPubliclyLimited.total, 10_000);
-    assert.equal(await largeRepository.getCar(10_026, { datasetLimit: 10_000 }), null);
+    const rolledPublicWindow = await largeRepository.listCars({ page: 1, pageSize: 100, datasetLimit: 10_000 });
+    assert.equal(rolledPublicWindow.total, 10_000);
+    assert.equal(rolledPublicWindow.items[0].id, 10_053);
+    assert.ok(rolledPublicWindow.items.some((car) => car.id === 10_026));
+    assert.equal(await largeRepository.getCar(26, { datasetLimit: 10_000 }), null);
+    assert.ok(await largeRepository.getCar(10_026, { datasetLimit: 10_000 }));
+    assert.ok(await largeRepository.getCar(10_053, { datasetLimit: 10_000 }));
   } finally {
     await largeRepository.close();
   }
@@ -177,7 +188,39 @@ test("API documentation exposes a keyed multi-page crawler", async () => {
   assert.match(html, /name="page_size" type="number" value="20"/);
   assert.match(html, /links\.next/);
   assert.match(html, /오늘의 공개 API 키/);
+  assert.match(html, /id="data-structure"/);
+  assert.match(html, /생성·갱신 반영 흐름/);
+  assert.match(html, /createdAt.*updatedAt/s);
   assert.match(html, new RegExp(dailyApiKeyProvider.keyForDate("2026-08-11").rawKey));
+});
+
+test("brand FAQ page exposes eight official-source brand groups with stable crawl selectors", async () => {
+  const response = await request("/faqs");
+  assert.equal(response.status, 200);
+  const html = await readHtml(response);
+  assert.match(html, /data-faq-list/);
+  assert.match(html, /data-faq-count="24"/);
+  assert.match(html, /FAQ CRAWL START URL/);
+  for (const brand of ["hyundai", "kia", "genesis", "chevrolet", "renault-korea", "kg-mobility", "bmw", "mercedes-benz"]) {
+    assert.match(html, new RegExp(`data-brand="${brand}"`));
+  }
+  const items = html.match(/<article\b[^>]*\bdata-faq-item\b[^>]*>/gi) ?? [];
+  assert.equal(items.length, 24);
+  assert.ok(items.every((item) => /data-faq-id="[^"]+"/.test(item)));
+  assert.ok(items.every((item) => /data-source-url="https:\/\//.test(item)));
+  assert.match(html, /data-field="question"/);
+  assert.match(html, /data-field="answer"/);
+  assert.match(html, /data-field="source"/);
+
+  const filteredResponse = await request("/faqs?brand=bmw");
+  assert.equal(filteredResponse.status, 200);
+  const filtered = await readHtml(filteredResponse);
+  assert.match(filtered, /data-selected-brand="bmw"/);
+  assert.equal((filtered.match(/<article\b[^>]*\bdata-faq-item\b[^>]*>/gi) ?? []).length, 3);
+  assert.doesNotMatch(filtered, /data-brand="hyundai"/);
+
+  const invalidResponse = await request("/faqs?brand=unknown");
+  assert.equal(invalidResponse.status, 400);
 });
 
 test("public daily key endpoint requires no key and authenticates only the current KST date", async () => {
@@ -204,6 +247,7 @@ test("crawl policy and robots define the classroom-only collection boundary", as
   assert.equal(robotsResponse.status, 200);
   const robots = await robotsResponse.text();
   assert.match(robots, /Allow: \/changes/);
+  assert.match(robots, /Allow: \/faqs/);
   assert.match(robots, /Allow: \/api\/v1\/public-key/);
   assert.match(robots, /Disallow: \/api\//);
   assert.match(robots, /Crawl-delay: 1/);
@@ -464,6 +508,7 @@ test("brand, location, business-area and stats resources match the domain", asyn
   assert.equal(stats.data.carCount, 240);
   assert.equal(stats.data.employeeCount, 3000);
   assert.ok(stats.data.businessAreaCount > 0);
+  assert.match(stats.data.latestDataUpdatedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 });
 
 test("health and OPTIONS stay public", async () => {

@@ -67,6 +67,7 @@ function layout({ title, description, activePage, content }) {
       </a>
       <nav class="site-nav" aria-label="주요 메뉴">
         ${navLink("/cars", "중고차 목록", "cars", activePage)}
+        ${navLink("/faqs", "브랜드 FAQ", "faqs", activePage)}
         ${navLink("/changes", "변경 로그", "changes", activePage)}
         ${navLink("/generation-runs", "적재 실행", "runs", activePage)}
         ${navLink("/docs", "API 문서", "docs", activePage)}
@@ -146,6 +147,7 @@ function renderCarBoardRow(car, rowNumber) {
 export function renderHomePage({ stats = {}, brands = [], baseUrl = "" } = {}) {
   const displayBase = normaliseBaseUrl(baseUrl) || "http://서버-IP:4000";
   const brandChips = brands.slice(0, 8).map((brand) => `<a href="/cars?brand=${encodeURIComponent(brand.slug)}">${escapeHtml(brand.name)} <span>${formatNumber(brand.carCount)}</span></a>`).join("");
+  const latestDataUpdatedAt = stats.latestDataUpdatedAt ?? "";
   return layout({
     title: "중고차 수집 실습 홈",
     description: "중고차 HTML 크롤링과 API·CSV 수집을 연습하는 로컬 서버",
@@ -157,7 +159,7 @@ export function renderHomePage({ stats = {}, brands = [], baseUrl = "" } = {}) {
             <p class="eyebrow">USED CAR DATA · HTML + JSON + MYSQL + MONGODB</p>
             <h1>차량을 긁고,<br><em>관계를 수집하세요.</em></h1>
             <p class="hero__lede">외부 사이트 대신 수집 권한이 명확한 합성 중고차 데이터를 HTML과 API로 제공합니다. 직원·업무영역 CSV 관계를 유지한 주기 데이터는 MySQL·MongoDB에 멱등 적재되고 고정 snapshot 변경 로그로 다시 수집할 수 있습니다.</p>
-            <div class="hero__actions"><a class="button button--primary" href="/cars">HTML 목록 크롤링</a><a class="button button--secondary" href="/changes">증분 로그 크롤링</a></div>
+            <div class="hero__actions"><a class="button button--primary" href="/cars">HTML 목록 크롤링</a><a class="button button--secondary" href="/faqs">브랜드 FAQ 크롤링</a><a class="button button--secondary" href="/changes">증분 로그 크롤링</a></div>
             <p class="hero__network"><span class="status-dot" aria-hidden="true"></span><strong>${escapeHtml(displayBase)}</strong> · 같은 Wi-Fi에서 접속</p>
           </div>
           <aside class="hero__panel" aria-label="데이터셋 현황">
@@ -168,19 +170,54 @@ export function renderHomePage({ stats = {}, brands = [], baseUrl = "" } = {}) {
               <div><dt>직원</dt><dd>${formatNumber(stats.employeeCount)}</dd></div>
               <div><dt>변경 로그</dt><dd>${formatNumber(stats.changeCount)}</dd></div>
             </dl>
-            <p class="dataset-source">현재 저장소: <strong>${escapeHtml(stats.source ?? "memory")}</strong></p>
+            <p class="dataset-source" data-last-data-updated-at="${escapeHtml(latestDataUpdatedAt)}">마지막 데이터 갱신: <strong><time datetime="${escapeHtml(latestDataUpdatedAt)}">${escapeHtml(formatDateTime(latestDataUpdatedAt))}</time></strong><br>현재 저장소: <strong>${escapeHtml(stats.source ?? "memory")}</strong></p>
           </aside>
         </div>
       </section>
       <section class="category-strip"><div class="shell"><p class="eyebrow">POPULAR BRANDS</p><div class="category-chips">${brandChips}</div></div></section>
       <section class="lesson-section"><div class="shell">
-        <div class="section-heading"><div><p class="eyebrow">FOUR COLLECTION TRACKS</p><h2>한 서버에서 네 가지 수집 흐름</h2></div></div>
+        <div class="section-heading"><div><p class="eyebrow">FIVE COLLECTION TRACKS</p><h2>한 서버에서 다섯 가지 수집 흐름</h2></div></div>
         <div class="lesson-grid">
-          <article class="lesson-card"><span>01</span><h3>HTML 크롤링</h3><p>토큰 없이 공개된 최대 10,000건을 20건씩 표시하는 게시판에서 <code>.car-card</code>와 <code>a[rel=next]</code>로 순회합니다.</p><a href="/cars?page=1&amp;page_size=20">게시판 열기 →</a></article>
+          <article class="lesson-card"><span>01</span><h3>HTML 크롤링</h3><p>토큰 없이 항상 최신 최대 10,000건을 20건씩 표시하는 게시판에서 <code>.car-card</code>와 <code>a[rel=next]</code>로 순회합니다.</p><a href="/cars?page=1&amp;page_size=20">게시판 열기 →</a></article>
           <article class="lesson-card"><span>02</span><h3>인증 API 수집</h3><p>4분마다 28건씩 늘어나는 JSON을 <code>X-API-Key</code> 헤더와 고정 커서 snapshot으로 안전하게 순회합니다.</p><a href="/docs">API 문서 →</a></article>
           <article class="lesson-card"><span>03</span><h3>CSV 관계 적재</h3><p>직원 3천 건, 업무영역 5만 건과 매물을 MySQL에서 조인하며 정규화·비정규화를 비교합니다.</p><a href="/learning-guide#csv-join">관계 설계 보기 →</a></article>
           <article class="lesson-card"><span>04</span><h3>증분 로그 수집</h3><p><code>until_seq</code> high-water mark를 고정하고 계속 늘어나는 변경 이벤트를 유한하게 수집합니다.</p><a href="/changes">변경 로그 →</a></article>
+          <article class="lesson-card"><span>05</span><h3>브랜드 FAQ 수집</h3><p>여덟 자동차 회사의 공식 자료를 출처와 함께 재구성한 FAQ에서 질문·답변·브랜드·카테고리를 수집합니다.</p><a href="/faqs">FAQ 게시판 →</a></article>
         </div>
+      </div></section>`,
+  });
+}
+
+export function renderFaqPage({ brands = [], items = [], allItems = items, selectedBrand = "", baseUrl = "" } = {}) {
+  const displayBase = normaliseBaseUrl(baseUrl) || "http://서버-IP:4000";
+  const counts = new Map(brands.map((brand) => [brand.slug, allItems.filter((item) => item.brand === brand.slug).length]));
+  const selected = brands.find((brand) => brand.slug === selectedBrand) ?? null;
+  const totalCount = items.length;
+  const brandLinks = [
+    `<a class="faq-brand-link${selected ? "" : " is-current"}" href="/faqs"${selected ? "" : ' aria-current="page"'} data-faq-brand-filter="all">전체 <span>${formatNumber(allItems.length)}</span></a>`,
+    ...brands.map((brand) => `<a class="faq-brand-link${selectedBrand === brand.slug ? " is-current" : ""}" href="/faqs?brand=${encodeURIComponent(brand.slug)}"${selectedBrand === brand.slug ? ' aria-current="page"' : ""} data-faq-brand-filter="${escapeHtml(brand.slug)}">${escapeHtml(brand.name)} <span>${formatNumber(counts.get(brand.slug) ?? 0)}</span></a>`),
+  ].join("");
+  const cards = items.map((item) => {
+    const brand = brands.find((entry) => entry.slug === item.brand);
+    return `<article class="faq-item" data-faq-item data-faq-id="${escapeHtml(item.id)}" data-brand="${escapeHtml(item.brand)}" data-category="${escapeHtml(item.category)}" data-reviewed-at="${escapeHtml(item.reviewedAt)}" data-source-url="${escapeHtml(item.sourceUrl)}">
+      <header class="faq-item__header"><p><span data-field="brand">${escapeHtml(brand?.name ?? item.brand)}</span><span data-field="category">${escapeHtml(item.category)}</span></p><code data-field="faq-id">${escapeHtml(item.id)}</code></header>
+      <h2 data-field="question">${escapeHtml(item.question)}</h2>
+      <p class="faq-item__answer" data-field="answer">${escapeHtml(item.answer)}</p>
+      <footer class="faq-item__source"><span>공식 자료 확인일 <time data-field="reviewed-at" datetime="${escapeHtml(item.reviewedAt)}">${escapeHtml(item.reviewedAt)}</time></span><a data-field="source" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="external nofollow noreferrer">${escapeHtml(item.sourceTitle)} ↗</a></footer>
+    </article>`;
+  }).join("");
+  const crawlStartUrl = `${displayBase}/faqs`;
+  return layout({
+    title: selected ? `${selected.name} FAQ` : "자동차 브랜드 FAQ",
+    description: "자동차 회사 공식 홈페이지 자료를 출처와 함께 재구성한 크롤링용 FAQ",
+    activePage: "faqs",
+    content: `<section class="page-hero page-hero--compact"><div class="shell"><p class="eyebrow">CRAWLABLE BRAND FAQ · OFFICIAL SOURCES</p><div class="page-hero__row"><div><h1>${escapeHtml(selected?.name ?? "자동차 브랜드")} FAQ</h1><p>공식 홈페이지 내용을 교육용으로 재작성한 질문·답변입니다. 각 항목의 출처 URL과 확인일을 함께 수집하세요.</p></div><a class="button button--dark" href="/crawl-policy">수집 이용정책</a></div></div></section>
+      <section class="faq-section"><div class="shell">
+        <aside class="crawl-address" aria-label="FAQ 크롤링 시작 주소"><div><p class="eyebrow">FAQ CRAWL START URL</p><code id="faq-crawl-url">${escapeHtml(crawlStartUrl)}</code></div><button class="copy-button" type="button" data-copy-target="faq-crawl-url">주소 복사</button></aside>
+        <div class="faq-notice"><strong>출처 사용 원칙</strong><p>원문을 대량 복제하지 않고 핵심을 재작성했습니다. 실제 구매·보증·정비 판단 전에는 각 카드의 공식 출처에서 최신 조건을 다시 확인하세요.</p></div>
+        <nav class="faq-brand-nav" aria-label="자동차 브랜드 선택">${brandLinks}</nav>
+        <div class="catalog-toolbar"><div><p class="eyebrow">FAQ RESULT</p><h2>${escapeHtml(selected?.name ?? "전체 브랜드")} <strong>${formatNumber(totalCount)}</strong>문항</h2></div><p><code>article.faq-item[data-faq-id]</code> 선택자로 수집</p></div>
+        <div class="faq-list" data-faq-list data-faq-count="${escapeHtml(totalCount)}" data-selected-brand="${escapeHtml(selectedBrand)}">${cards}</div>
       </div></section>`,
   });
 }
@@ -203,7 +240,7 @@ export function renderCarListPage({ items = [], total = 0, query = {}, brands = 
     description: "한 페이지에 20건씩 제공되는 중고차 게시판형 HTML 크롤링 데이터",
     activePage: "cars",
     content: `
-      <section class="page-hero page-hero--compact"><div class="shell"><p class="eyebrow">CRAWLABLE BOARD · 20 ROWS PER PAGE</p><div class="page-hero__row"><div><h1>중고차 매물 게시판</h1><p>토큰 없이 공개된 최대 ${formatNumber(publicResultLimit)}건을 20건씩 읽고 <code>a[rel=next]</code>를 따라 마지막 페이지까지 순회하세요.</p></div><a class="button button--dark" href="/docs#api-explorer">API 키 크롤링 실습 ↗</a></div></div></section>
+      <section class="page-hero page-hero--compact"><div class="shell"><p class="eyebrow">CRAWLABLE BOARD · 20 ROWS PER PAGE</p><div class="page-hero__row"><div><h1>중고차 매물 게시판</h1><p>새 데이터가 들어올 때마다 갱신되는 최신 최대 ${formatNumber(publicResultLimit)}건을 20건씩 읽고 <code>a[rel=next]</code>를 따라가세요.</p></div><a class="button button--dark" href="/docs#api-explorer">API 키 크롤링 실습 ↗</a></div></div></section>
       <section class="catalog-section"><div class="shell">
         <aside class="crawl-address" aria-label="HTML 크롤링 시작 주소"><div><p class="eyebrow">HTML CRAWL START URL</p><code id="html-crawl-url">${escapeHtml(crawlStartUrl)}</code></div><button class="copy-button" type="button" data-copy-target="html-crawl-url">주소 복사</button></aside>
         <form class="filter-panel car-filter-panel" action="/cars" method="get" role="search">
@@ -268,16 +305,22 @@ export function renderDocsPage({ baseUrl = "", dailyKeySchedule = null } = {}) {
   const dailyKeyPanel = currentDailyKey
     ? `<section class="docs-section daily-key-section" id="daily-key" data-daily-key-panel data-key-endpoint="/api/v1/public-key"><p class="eyebrow">PUBLIC DAILY API KEY · ASIA/SEOUL</p><h2>오늘의 공개 API 키</h2><p>모든 수강생이 함께 사용하는 고정 일일 키입니다. 한국시간 <strong>매일 00:00</strong>에 자동 교체되며, <strong>23:00부터 다음 날 키</strong>도 미리 공개됩니다. 다음 날 키는 표시되어도 자정 전에는 인증되지 않습니다.</p><div class="daily-key-current"><div><span data-daily-current-date>${escapeHtml(currentDailyKey.date)}</span><code id="daily-api-key" data-daily-current-key>${escapeHtml(currentDailyKey.api_key)}</code></div><button class="copy-button" type="button" data-copy-target="daily-api-key">현재 키 복사</button></div><dl class="daily-key-meta"><div><dt>활성 시작</dt><dd data-daily-active-from>${escapeHtml(currentDailyKey.active_from)}</dd></div><div><dt>만료·교체</dt><dd data-daily-expires-at>${escapeHtml(currentDailyKey.expires_at)}</dd></div><div><dt>자동화 조회</dt><dd><code>${escapeHtml(displayBase)}/api/v1/public-key</code></dd></div></dl><div class="daily-key-next" data-daily-next${nextDailyKey ? "" : " hidden"}><strong>다음 날 키 · <span data-daily-next-date>${escapeHtml(nextDailyKey?.date ?? "")}</span></strong><code data-daily-next-key>${escapeHtml(nextDailyKey?.api_key ?? "")}</code><p><span data-daily-next-active>${escapeHtml(nextDailyKey?.active_from ?? "")}</span>부터 사용 가능</p></div><p class="daily-key-notice"><strong>자동화 권장:</strong> 실행 직전에 공개 키 JSON을 읽어 <code>data.current.api_key</code>를 헤더에 넣으세요. 자정을 넘긴 요청이 <code>403</code>이면 키를 다시 조회하고 실패한 페이지를 한 번만 재시도합니다.</p></section>`
     : `<section class="docs-section daily-key-section" id="daily-key"><p class="eyebrow">PUBLIC DAILY API KEY</p><h2>공개 키 준비 중</h2><p>배포자에게 <code>DAILY_API_KEY_SECRET</code> 설정을 확인해 달라고 요청하세요.</p></section>`;
+  const dataStructureSection = `<section class="docs-section" id="data-structure"><p class="eyebrow">DATA STRUCTURE · LIVE INGESTION</p><h2>응답과 데이터 구조</h2><p>목록 응답은 <code>data</code>, <code>meta</code>, <code>links</code> 세 부분으로 구성됩니다. <code>data</code>는 실제 레코드, <code>meta</code>는 페이지·커서·데이터셋 정보, <code>links.next</code>는 다음 요청 주소입니다. 상세 응답은 단일 객체를 <code>data</code>에 담습니다.</p><div class="code-block"><div><span>공통 목록 응답 envelope</span></div><pre><code>{
+  "data": [{ "id": 100053, "listingNumber": "UC-00100053" }],
+  "meta": { "returned": 1, "has_more": true },
+  "links": { "self": "/api/v1/cars/cursor?after_id=100052", "next": "..." }
+}</code></pre></div><h3>중고차 매물 객체</h3><div class="table-scroll" tabindex="0"><table><thead><tr><th>필드</th><th>형식</th><th>의미</th></tr></thead><tbody><tr><th><code>id</code> / <code>listingNumber</code></th><td>number / string</td><td>적재·upsert에 사용하는 안정 식별자</td></tr><tr><th><code>brand</code> / <code>model</code></th><td>object</td><td>제조사와 차종의 ID·이름·slug</td></tr><tr><th><code>modelYear</code> / <code>mileageKm</code></th><td>number</td><td>연식과 누적 주행거리(km)</td></tr><tr><th><code>price</code> / <code>currency</code></th><td>number / string</td><td>통화의 정수 가격과 통화 코드</td></tr><tr><th><code>status</code></th><td>string</td><td><code>AVAILABLE</code>, <code>RESERVED</code>, <code>SOLD</code></td></tr><tr><th><code>location</code></th><td>object</td><td>차량의 실제 시·도/시·군·구 소재지</td></tr><tr><th><code>dealer</code></th><td>object</td><td>가명 코드·마스킹 이름·부서·직급</td></tr><tr><th><code>businessArea</code></th><td>object</td><td>담당 업무영역과 선택적 상위 영역</td></tr><tr><th><code>createdAt</code> / <code>updatedAt</code></th><td>ISO 8601 string</td><td>등록·최종 갱신 시각</td></tr></tbody></table></div><h3>생성·갱신 반영 흐름</h3><p>서버는 기본적으로 4분마다 28건을 생성합니다. 각 성공 묶음은 차량 projection, <code>changes</code>의 <code>UPSERT</code> 이벤트, <code>generation-runs</code> 상태 이벤트에 함께 기록됩니다. 적재가 끝나는 즉시 신규 차량은 공개 HTML의 최신 10,000건 창과 전체 JSON API에 보이며, HTML 창에서는 같은 수의 가장 오래된 차량이 빠집니다.</p><div class="table-scroll" tabindex="0"><table><thead><tr><th>구조</th><th>안정 키</th><th>용도</th></tr></thead><tbody><tr><th>차량 projection</th><td><code>id</code>, <code>listingNumber</code></td><td>현재 차량 상태 조회</td></tr><tr><th>변경 이벤트</th><td><code>seq</code>, <code>eventId</code></td><td>신규·갱신분 증분 upsert</td></tr><tr><th>생성 상태 이벤트</th><td><code>eventId</code>, <code>runId</code></td><td>묶음 적재의 RUNNING·SUCCESS·실패 추적</td></tr><tr><th>데이터셋 수명주기</th><td><code>dataset_epoch</code></td><td>재시드를 감지하고 체크포인트 분리</td></tr></tbody></table></div><p>HTML의 최신 창은 생성 중에도 이동할 수 있습니다. 중복·누락 없이 저장하려면 <code>/api/v1/cars/cursor</code> 첫 응답의 <code>until_id</code>와 <code>dataset_epoch</code>를 고정하고, 이후에는 <code>links.next</code>를 그대로 따라가세요.</p></section>`;
   return layout({
     title: "API 문서",
     description: "AutoData Lab 중고차 JSON API와 API 키 사용법",
     activePage: "docs",
     content: `<section class="docs-hero"><div class="shell docs-hero__grid"><div><p class="eyebrow">API REFERENCE · PUBLIC DAILY KEY</p><h1>오늘의 키로<br>차량을 수집하세요.</h1><p>HTML 페이지와 일일 키 안내는 공개됩니다. <code>/api/v1/*</code> 데이터 요청에는 오늘의 키를 URL이 아니라 요청 헤더에 넣습니다.</p></div><div class="base-url-card"><span>BASE URL</span><code id="base-url-value">${escapeHtml(displayBase)}</code><button class="copy-button" type="button" data-copy-target="base-url-value">복사</button></div></div></section>
-      <div class="shell docs-layout"><aside class="docs-nav"><strong>문서 목차</strong><a href="#daily-key">오늘의 공개 키</a><a href="#authentication">인증</a><a href="#endpoints">엔드포인트</a><a href="#parameters">필터</a><a href="#api-explorer">API 크롤러</a></aside><div class="docs-content">
+      <div class="shell docs-layout"><aside class="docs-nav"><strong>문서 목차</strong><a href="#daily-key">오늘의 공개 키</a><a href="#authentication">인증</a><a href="#endpoints">엔드포인트</a><a href="#data-structure">데이터 구조</a><a href="#parameters">필터</a><a href="#api-explorer">API 크롤러</a></aside><div class="docs-content">
         ${dailyKeyPanel}
         <section class="docs-section" id="authentication"><p class="eyebrow">AUTHENTICATION</p><h2>API 키 헤더</h2><p>위에 공개된 오늘의 키를 <code>X-API-Key</code> 또는 <code>Authorization: Bearer</code> 헤더로 전달합니다. 키는 한국시간 자정에 자동 교체됩니다.</p><div class="code-block code-block--command"><div><span>curl</span></div><pre><code>curl '${escapeHtml(displayBase)}/api/v1/cars?page_size=20' \\
   -H 'X-API-Key: YOUR_API_KEY'</code></pre></div><p><code>401</code>은 키 누락, <code>403</code>은 잘못되었거나 만료된 키를 뜻합니다. 키를 쿼리 문자열에 넣으면 로그와 방문 기록에 남으므로 사용하지 마세요.</p></section>
         <section class="docs-section" id="endpoints"><p class="eyebrow">ENDPOINTS</p><h2>사용 가능한 경로</h2><p><code>/api/v1/public-key</code>만 키 조회를 위한 공개 예외입니다. 아래 차량·변경·통계 JSON은 유효한 현재 키가 있어야 호출되며, HTML 게시판과 달리 전체 데이터 범위를 제공합니다.</p><div class="endpoint-list">${endpointCard("/healthz", "서버와 저장소 상태를 확인합니다.", true)}${endpointCard("/api/v1/public-key", "현재 키와 23시 이후 다음 날 키를 조회합니다.", true)}${endpointCard("/api/v1/cars", "필터·정렬·페이지 기반 차량 목록")}${endpointCard("/api/v1/cars/cursor?after_id=0&limit=100", "대량 적재용 ID 커서 목록")}${endpointCard("/api/v1/changes?after_seq=0&limit=100", "고정 high-water mark 증분 변경 로그")}${endpointCard("/api/v1/generation-runs?after_id=0", "append-only 적재 상태 이벤트")}${endpointCard("/api/v1/cars/:id", "차량 한 건과 담당 관계")}${endpointCard("/api/v1/brands", "브랜드별 차량 수")}${endpointCard("/api/v1/locations", "실제 차량 소재지 목록")}${endpointCard("/api/v1/business-areas", "CSV 업무영역과 마스킹된 관리자")}${endpointCard("/api/v1/stats", "데이터셋 통계")}</div></section>
+        ${dataStructureSection}
         <section class="docs-section" id="parameters"><p class="eyebrow">QUERY PARAMETERS</p><h2>차량 목록 필터</h2><div class="table-scroll" tabindex="0"><table><thead><tr><th>이름</th><th>예시</th><th>설명</th></tr></thead><tbody><tr><th><code>q</code></th><td>그랜저</td><td>브랜드·모델·트림 검색</td></tr><tr><th><code>brand</code></th><td>hyundai</td><td>브랜드 slug</td></tr><tr><th><code>fuel</code></th><td>하이브리드</td><td>연료 유형</td></tr><tr><th><code>status</code></th><td>AVAILABLE</td><td>판매 상태</td></tr><tr><th><code>location</code></th><td>seoul</td><td>실제 소재지 slug</td></tr><tr><th><code>min_price</code> / <code>max_price</code></th><td>10000000</td><td>가격 범위</td></tr><tr><th><code>min_year</code> / <code>max_year</code></th><td>2020</td><td>연식 범위</td></tr><tr><th><code>max_mileage</code></th><td>80000</td><td>최대 주행거리 km</td></tr><tr><th><code>accident_free</code></th><td>true</td><td>사고 0건만 조회</td></tr><tr><th><code>sort</code></th><td>price_asc</td><td>newest, price_asc, price_desc, mileage_asc, year_desc</td></tr><tr><th><code>page</code> / <code>page_size</code></th><td>1 / 20</td><td>페이지와 1~100 크기</td></tr></tbody></table></div></section>
         <section class="docs-section explorer-section" id="api-explorer"><p class="eyebrow">API CRAWLER</p><h2>공개 키로 페이지 순회</h2><p>화면이 오늘의 키를 자동 입력합니다. 현재 페이지 한 번만 조회하거나 서버의 <code>links.next</code>를 따라 여러 페이지를 자동 수집할 수 있습니다. 키와 수집 결과는 브라우저 메모리에만 머물며 로컬 저장소에 저장하지 않습니다.</p><form class="api-explorer car-api-explorer" action="/api/v1/cars" method="get" data-api-explorer><div class="field api-key-field"><label for="explorer-key">오늘의 API 키</label><div class="secret-input"><input id="explorer-key" type="password" autocomplete="off" spellcheck="false" placeholder="공개 키 불러오는 중…" value="${escapeHtml(currentDailyKey?.api_key ?? "")}" data-api-key required><button type="button" data-toggle-secret aria-controls="explorer-key" aria-pressed="false">표시</button></div><button class="field-refresh" type="button" data-load-daily-key>현재 공개 키 다시 불러오기</button></div><div class="field"><label for="explorer-q">검색어</label><input id="explorer-q" name="q" type="search" placeholder="예: 쏘나타"></div><div class="field"><label for="explorer-sort">정렬</label><select id="explorer-sort" name="sort"><option value="newest">최신 등록순</option><option value="price_asc">낮은 가격순</option><option value="price_desc">높은 가격순</option><option value="mileage_asc">짧은 주행거리순</option><option value="year_desc">최신 연식순</option></select></div><div class="field"><label for="explorer-size">페이지당 건수</label><input id="explorer-size" name="page_size" type="number" value="20" min="1" max="100"></div><div class="field"><label for="explorer-max-pages">최대 순회 페이지</label><input id="explorer-max-pages" type="number" value="5" min="1" max="50" data-api-max-pages data-api-client-field></div><div class="api-explorer__actions"><button class="button button--secondary" type="submit" data-api-single>현재 페이지 조회</button><button class="button button--primary" type="submit" data-api-crawl>API 크롤링 시작</button><button class="button button--secondary" type="button" data-api-stop disabled>중지</button></div></form><div class="explorer-progress" data-api-progress aria-live="polite">수집 대기 · 최대 5페이지</div><div class="explorer-result"><div><span class="response-status" data-api-status aria-live="polite">요청 전</span><code data-api-url>/api/v1/cars?page_size=20</code><button class="result-download" type="button" data-api-download disabled>JSON 저장</button></div><pre tabindex="0"><code data-api-output>오늘의 공개 키를 확인한 뒤 ‘API 크롤링 시작’을 누르세요.</code></pre></div></section>
       </div></div>`,
@@ -292,7 +335,7 @@ export function renderLearningGuidePage({ baseUrl = "", stats = {} } = {}) {
     activePage: "guide",
     content: `<section class="docs-hero"><div class="shell docs-hero__grid"><div><p class="eyebrow">CLASSROOM GUIDE</p><h1>관찰부터 적재까지<br>한 단계씩.</h1><p>HTML 선택자, 인증 헤더, 페이지 종료 조건, CSV 정규화와 MySQL 조인을 한 데이터셋으로 이어갑니다.</p></div><div class="base-url-card"><span>현재 데이터</span><code>${formatNumber(stats.carCount)} cars · ${formatNumber(stats.businessAreaCount)} areas</code><span>${escapeHtml(displayBase)}</span></div></div></section>
       <div class="shell docs-layout"><aside class="docs-nav"><strong>실습 순서</strong><a href="#html-crawl">1. HTML</a><a href="#api-collect">2. API</a><a href="#csv-join">3. CSV 관계</a><a href="#assignments">4. 과제</a></aside><div class="docs-content">
-        <section class="docs-section" id="html-crawl"><p class="eyebrow">STEP 1</p><h2>HTML 게시판 수집</h2><p><code>/cars?page=1&amp;page_size=20</code>은 토큰 없이 고정된 최초 최대 10,000건을 한 페이지에 20건씩 보여 주는 게시판입니다. 필터·정렬도 이 공개 집합 안에서만 동작합니다. 각 행은 <code>article.car-card[data-car-id]</code>이고, 제목·가격·주행거리에는 <code>data-field</code>가 있습니다. 다음 페이지는 직접 계산하지 말고 <code>a[rel=next]</code>를 따라갑니다.</p><div class="code-block"><div><span>Python + BeautifulSoup</span></div><pre><code>import requests
+        <section class="docs-section" id="html-crawl"><p class="eyebrow">STEP 1</p><h2>HTML 게시판 수집</h2><p><code>/cars?page=1&amp;page_size=20</code>은 토큰 없이 항상 최신 최대 10,000건을 한 페이지에 20건씩 보여 주는 게시판입니다. 새 데이터가 추가되면 공개 창에 들어오고 가장 오래된 데이터가 빠집니다. 필터·정렬은 이 실시간 공개 집합 안에서 동작합니다. 각 행은 <code>article.car-card[data-car-id]</code>이고, 제목·가격·주행거리에는 <code>data-field</code>가 있습니다. 다음 페이지는 직접 계산하지 말고 <code>a[rel=next]</code>를 따라갑니다.</p><div class="code-block"><div><span>Python + BeautifulSoup</span></div><pre><code>import requests
 from bs4 import BeautifulSoup
 
 url = "${escapeHtml(displayBase)}/cars?page=1&amp;page_size=20"
@@ -406,7 +449,7 @@ export function renderCrawlPolicyPage({ baseUrl = "" } = {}) {
     activePage: "policy",
     content: `<section class="docs-hero"><div class="shell docs-hero__grid"><div><p class="eyebrow">CRAWL POLICY · EDUCATIONAL SANDBOX</p><h1>허용 범위를<br>먼저 확인하세요.</h1><p><strong>${escapeHtml(displayBase)}</strong>의 합성 데이터는 아래 조건에서 교육용 수집을 허용합니다. 이 허가는 어떤 제3자 사이트에도 적용되지 않습니다.</p></div><div class="base-url-card"><span>권장 HTML 간격</span><code>요청 사이 최소 1초</code><span>API는 발급 키와 응답의 제한 헤더 준수</span></div></div></section>
       <div class="shell docs-layout"><aside class="docs-nav"><strong>정책 목차</strong><a href="#allowed">허용</a><a href="#prohibited">금지</a><a href="#limits">요청 제한</a><a href="#legal">외부 사이트</a></aside><div class="docs-content">
-        <section class="docs-section" id="allowed"><p class="eyebrow">ALLOWED</p><h2>이 샌드박스에서 허용하는 수집</h2><ul><li>최초 최대 10,000건으로 제한된 <code>/cars</code> 게시판과 연결 상세의 순차 HTML 수집</li><li><code>/changes</code>, <code>/generation-runs</code>의 순차 HTML 수집</li><li>공개 일일 키를 헤더로 사용하는 <code>/api/v1/*</code> JSON 수집</li><li><code>/api/v1/public-key</code>를 이용한 자정 키 갱신 자동화</li><li>과제 제출을 위한 합성 데이터의 저장·변환·통계</li></ul><p>차량, 담당자 표시명, 실행 기록은 모두 교육용 합성 값이며 실제 차량번호·연락처를 포함하지 않습니다.</p></section>
+        <section class="docs-section" id="allowed"><p class="eyebrow">ALLOWED</p><h2>이 샌드박스에서 허용하는 수집</h2><ul><li>항상 최신 최대 10,000건으로 갱신되는 <code>/cars</code> 게시판과 연결 상세의 순차 HTML 수집</li><li>공식 출처를 함께 표시하는 <code>/faqs</code> 브랜드 FAQ의 순차 HTML 수집</li><li><code>/changes</code>, <code>/generation-runs</code>의 순차 HTML 수집</li><li>공개 일일 키를 헤더로 사용하는 <code>/api/v1/*</code> JSON 수집</li><li><code>/api/v1/public-key</code>를 이용한 자정 키 갱신 자동화</li><li>과제 제출을 위한 합성 데이터의 저장·변환·통계</li></ul><p>차량, 담당자 표시명, 실행 기록은 모두 교육용 합성 값이며 실제 차량번호·연락처를 포함하지 않습니다. FAQ는 공식 자료를 교육용으로 재작성한 snapshot이므로 실제 의사결정 전 원문을 다시 확인합니다.</p></section>
         <section class="docs-section" id="prohibited"><p class="eyebrow">NOT ALLOWED</p><h2>우회와 과도한 요청 금지</h2><ul><li>인증 우회, 키 공유·노출, 제한 회피, 의도적인 서비스 방해</li><li>과도한 병렬 요청, <code>429</code> 또는 <code>Retry-After</code> 무시</li><li>개인정보나 실재 차량 정보를 이 서버에 입력하거나 공개</li></ul></section>
         <section class="docs-section" id="limits"><p class="eyebrow">RATE &amp; SNAPSHOT</p><h2>유한하게 끝나는 수집</h2><p>HTML은 요청 사이 최소 1초를 두고 <code>a[rel=next]</code>를 따릅니다. 변경·상태 이벤트는 첫 응답에서 받은 <code>until_seq</code> 또는 <code>until_id</code>를 끝까지 유지합니다. 실행 feed의 ID는 run ID가 아니라 event cursor입니다. API 제한을 넘으면 <code>429</code>, <code>Retry-After</code>, <code>RateLimit-*</code> 헤더를 반환합니다.</p></section>
         <section class="docs-section" id="legal"><p class="eyebrow">THIRD-PARTY SITES</p><h2>robots 허용만으로 충분하지 않습니다</h2><p>외부 수집이 언제나 불법인 것도, 공개 페이지라 언제나 허용되는 것도 아닙니다. 실제 사이트에서는 이용약관, 저작권·데이터베이스 권리, 개인정보, 로그인·접근통제, 요청 부하, API 라이선스를 각각 확인하고 권한이 불명확하면 수집하지 않습니다.</p></section>
