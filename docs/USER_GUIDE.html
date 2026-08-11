@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="서버 주소와 API 키로 AutoData Lab의 HTML과 JSON API를 수집하는 사용자·수강생 안내서">
+  <meta name="color-scheme" content="light">
+  <title>AutoData Lab 사용자용 사용설명서</title>
+  <style>
+:root {
+  --canvas: #f4f3ec; --surface: #fff; --surface-soft: #ebece4; --ink: #14221e;
+  --ink-soft: #53615c; --line: #d9ddd4; --forest: #0e654b; --forest-dark: #0b392e;
+  --forest-deep: #071f1a; --lime: #d8ee74; --coral: #ff765e; --gold: #e8a62a;
+  --danger: #9d332f; --shadow: 0 1px 2px rgb(16 37 31 / .08), 0 12px 30px rgb(16 37 31 / .07);
+  --radius-sm: 10px; --radius-md: 18px; --radius-lg: 28px; --shell: 1180px;
+  --sans: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; color: var(--ink); background: var(--canvas); font-family: var(--sans); font-size: 16px; line-height: 1.75; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+a { color: var(--forest); text-decoration-thickness: 1.5px; text-underline-offset: .2em; }
+a:hover { color: var(--forest-dark); }
+button, input { font: inherit; }
+code, pre { font-family: var(--mono); }
+code { padding: .13em .34em; color: #084d3a; border-radius: 5px; background: #e7efe8; font-size: .88em; overflow-wrap: anywhere; }
+strong { font-weight: 850; }
+:focus-visible { outline: 3px solid var(--forest-deep); outline-offset: 3px; box-shadow: 0 0 0 6px var(--coral); }
+::selection { color: var(--forest-deep); background: var(--lime); }
+.shell { width: min(calc(100% - 40px), var(--shell)); margin-inline: auto; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.skip-link { position: fixed; z-index: 1000; top: 12px; left: 12px; padding: 10px 16px; color: #fff; background: var(--forest-deep); border-radius: 8px; font-weight: 800; transform: translateY(-160%); transition: transform 160ms ease; }
+.skip-link:focus { transform: translateY(0); }
+.topbar { position: sticky; z-index: 30; top: 0; border-bottom: 1px solid rgb(20 34 30 / .11); background: rgb(244 243 236 / .94); backdrop-filter: blur(16px); }
+.topbar__inner { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.brand { display: inline-flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; }
+.brand__mark { width: 38px; height: 38px; display: grid; place-items: center; color: var(--forest-deep); background: var(--lime); border: 1px solid rgb(7 31 26 / .18); border-radius: 12px 4px 12px 12px; box-shadow: 3px 3px 0 var(--forest-deep); font-weight: 950; }
+.brand__text { display: flex; flex-direction: column; line-height: 1.15; }
+.brand__text small { margin-top: 4px; color: var(--ink-soft); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
+.role-nav { display: flex; align-items: center; gap: 8px; }
+.role-pill, .role-link { min-height: 42px; display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 800; }
+.role-pill { color: #fff; background: var(--forest); }
+.role-link { color: var(--ink); border: 1px solid var(--line); background: var(--surface); text-decoration: none; }
+.hero { position: relative; overflow: hidden; padding: 68px 0 72px; color: #fff; background: radial-gradient(circle at 85% 0, rgb(216 238 116 / .2), transparent 28%), radial-gradient(circle at 4% 100%, rgb(255 118 94 / .12), transparent 31%), var(--forest-deep); }
+.hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .16; background-image: linear-gradient(rgb(255 255 255 / .12) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / .12) 1px, transparent 1px); background-size: 46px 46px; mask-image: linear-gradient(to right, transparent 12%, #000 90%); }
+.hero__inner { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, .55fr); gap: clamp(34px, 8vw, 96px); align-items: end; }
+.eyebrow { margin: 0 0 12px; color: var(--lime); font-size: 11px; font-weight: 900; letter-spacing: .14em; }
+.hero h1 { max-width: 760px; margin: 0; font-size: clamp(40px, 5.8vw, 68px); font-weight: 950; letter-spacing: -.055em; line-height: 1.08; word-break: keep-all; }
+.hero__copy { max-width: 720px; margin: 20px 0 0; color: rgb(255 255 255 / .72); font-size: 18px; word-break: keep-all; }
+.fact-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.fact-list li { min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; color: #fff; border: 1px solid rgb(255 255 255 / .16); border-radius: 13px; background: rgb(255 255 255 / .07); font-weight: 780; }
+.fact-list li::before { content: ""; width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 4px rgb(216 238 116 / .12); }
+.page { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 42px; align-items: start; padding: 44px 0 80px; }
+.toc { position: sticky; top: 96px; max-height: calc(100vh - 120px); overflow: auto; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-md); background: rgb(255 255 255 / .78); box-shadow: var(--shadow); }
+.toc summary { cursor: pointer; color: var(--forest); font-weight: 900; }
+.toc ol { margin: 14px 0 0; padding: 0; list-style: none; }
+.toc li + li { margin-top: 2px; }
+.toc a { display: block; padding: 6px 8px; color: var(--ink-soft); border-radius: 7px; font-size: 13px; font-weight: 700; line-height: 1.4; text-decoration: none; }
+.toc a:hover, .toc a[aria-current="location"] { color: var(--forest-dark); background: #e5eee2; font-weight: 850; }
+.toc a[aria-current="location"] { box-shadow: inset 3px 0 0 var(--forest); }
+.toc .toc-level-3 a { padding-left: 22px; font-size: 12px; font-weight: 600; }
+.manual { min-width: 0; max-width: 820px; }
+.intro-card, .guide-section { padding: clamp(24px, 4vw, 42px); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); }
+.guide-section { margin-top: 20px; }
+.intro-card { border-top: 5px solid var(--lime); }
+.intro-card > :first-child, .guide-section > :first-child { margin-top: 0; }
+.intro-card > :last-child, .guide-section > :last-child { margin-bottom: 0; }
+.manual h2, .manual h3 { position: relative; scroll-margin-top: 98px; word-break: keep-all; }
+.manual h2 { margin: 0 0 22px; padding-bottom: 14px; border-bottom: 1px solid var(--line); font-size: clamp(27px, 3.3vw, 38px); font-weight: 920; letter-spacing: -.045em; line-height: 1.25; }
+.manual h3 { margin: 36px 0 14px; color: var(--forest-dark); font-size: clamp(20px, 2.4vw, 26px); font-weight: 880; letter-spacing: -.025em; line-height: 1.35; }
+.heading-anchor { margin-left: 8px; color: var(--forest); font-size: .65em; font-weight: 800; text-decoration: none; }
+.manual h2:hover .heading-anchor, .manual h3:hover .heading-anchor, .heading-anchor:focus { color: var(--danger); }
+.manual p { margin: 14px 0; color: var(--ink-soft); word-break: keep-all; overflow-wrap: anywhere; }
+.manual ul, .manual ol { margin: 16px 0; padding-left: 1.45em; }
+.manual li { margin: 7px 0; padding-left: .18em; overflow-wrap: anywhere; }
+.manual li::marker { color: var(--forest); font-weight: 850; }
+.manual strong { color: var(--ink); }
+.project-reference { color: var(--ink-soft); }
+.table-scroll { max-width: 100%; margin: 22px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+table { width: 100%; min-width: 590px; border-collapse: collapse; font-size: 14px; line-height: 1.55; }
+th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+thead th { color: #fff; background: var(--forest); font-size: 12px; letter-spacing: .02em; }
+tbody th { color: var(--ink); background: #f3f6ef; font-weight: 780; }
+tbody tr:last-child > * { border-bottom: 0; }
+tbody tr:nth-child(even) td { background: #fafaf7; }
+.align-right { text-align: right; }
+.align-center { text-align: center; }
+.code-block { margin: 22px 0; overflow: hidden; border: 1px solid #263b35; border-radius: var(--radius-md); background: #0c1714; box-shadow: 0 12px 28px rgb(7 31 26 / .12); }
+.code-block figcaption { min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 7px 10px 7px 16px; color: rgb(255 255 255 / .68); border-bottom: 1px solid rgb(255 255 255 / .1); font-family: var(--mono); font-size: 11px; font-weight: 700; }
+.code-actions { display: flex; gap: 6px; }
+.code-actions button { min-height: 44px; padding: 7px 12px; color: #fff; border: 1px solid rgb(255 255 255 / .2); border-radius: 8px; background: rgb(255 255 255 / .07); cursor: pointer; font-size: 11px; font-weight: 800; }
+.code-actions button:hover { color: var(--forest-deep); background: var(--lime); }
+.code-actions button:focus-visible { outline: 3px solid var(--lime); outline-offset: -4px; box-shadow: none; }
+.code-block pre { margin: 0; padding: 20px; overflow: auto; color: #dcece5; background: transparent; font-size: 13px; line-height: 1.65; tab-size: 4; }
+.code-block pre code { display: block; min-width: max-content; padding: 0; color: inherit; background: transparent; border-radius: 0; font-size: inherit; overflow-wrap: normal; }
+.code-block.is-wrapped pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.code-block.is-wrapped pre code { min-width: 0; }
+.checklist { padding: 0 !important; list-style: none; }
+.check-item { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 12px !important; border: 1px solid var(--line); border-radius: 10px; background: #fafaf7; }
+.check-box { width: 18px; height: 18px; margin-top: 5px; border: 2px solid var(--forest); border-radius: 4px; background: #fff; }
+.check-box.is-checked { background: var(--forest); box-shadow: inset 0 0 0 3px #fff; }
+.security-note { margin: 0; padding: 12px 0; color: var(--forest-deep); background: var(--lime); text-align: center; font-size: 13px; font-weight: 850; }
+.toast { position: fixed; z-index: 80; right: 20px; bottom: 20px; padding: 11px 16px; color: #fff; border-radius: 10px; background: var(--forest-deep); box-shadow: var(--shadow); font-weight: 800; transform: translateY(130%); transition: transform 160ms ease; }
+.toast.is-visible { transform: translateY(0); }
+.footer { padding: 34px 0; color: rgb(255 255 255 / .68); background: var(--forest-deep); }
+.footer__inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.footer strong { color: #fff; }
+.footer p { margin: 4px 0 0; font-size: 12px; }
+.footer a { color: var(--lime); }
+@media (max-width: 880px) {
+  .page { grid-template-columns: 1fr; gap: 20px; padding-top: 24px; }
+  .toc { position: static; max-height: none; }
+  .toc ol { columns: 2; column-gap: 20px; }
+  .toc li { break-inside: avoid; }
+  .manual { max-width: none; }
+  .hero__inner { grid-template-columns: 1fr; }
+  .fact-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .shell { width: min(calc(100% - 28px), var(--shell)); }
+  .topbar__inner { min-height: 66px; }
+  .brand__text small, .role-pill { display: none; }
+  .role-link { min-height: 44px; padding-inline: 12px; }
+  .hero { padding: 50px 0 54px; }
+  .hero h1 { font-size: clamp(34px, 10vw, 48px); }
+  .hero__copy { font-size: 16px; }
+  .fact-list { grid-template-columns: 1fr; }
+  .page { padding-bottom: 48px; }
+  .toc ol { columns: 1; }
+  .intro-card, .guide-section { padding: 22px 18px; border-radius: 20px; }
+  .manual h2 { font-size: 28px; }
+  .code-block { margin-inline: -4px; }
+  .code-block pre { padding: 16px; font-size: 12px; }
+  .footer__inner { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 400px) {
+  .topbar__inner { gap: 10px; }
+  .brand__mark { width: 35px; height: 35px; }
+  .brand__text { display: none; }
+  .role-link { padding-inline: 10px; font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+}
+@media (prefers-contrast: more) {
+  :root { --ink-soft: #34413d; --line: #9ba69f; }
+}
+@page { size: A4; margin: 14mm 13mm 16mm; }
+@media print {
+  :root { --ink: #000; --ink-soft: #222; --line: #aaa; }
+  body { color: #000; background: #fff; font-size: 10pt; line-height: 1.5; }
+  .topbar, .toc, .skip-link, .code-actions, .toast, .footer { display: none !important; }
+  .shell { width: 100%; }
+  .hero { padding: 0 0 8mm; color: #000; border-top: 4mm solid var(--forest); background: #fff; }
+  .hero::after { display: none; }
+  .hero__inner { display: block; }
+  .eyebrow { margin-top: 5mm; color: var(--forest); }
+  .hero h1 { max-width: none; color: #000; font-size: 27pt; }
+  .hero__copy { max-width: none; margin-top: 3mm; color: #222; font-size: 11pt; }
+  .fact-list { display: flex; flex-wrap: wrap; gap: 3mm; margin-top: 5mm; }
+  .fact-list li { min-height: auto; padding: 1.5mm 3mm; color: #000; border: 1px solid #777; background: #fff; }
+  .fact-list li::before { box-shadow: none; background: var(--forest); }
+  .security-note { display: block; margin: 0 0 5mm; padding: 3mm; color: #000; border: 2px solid #333; background: #fff; text-align: left; }
+  .security-note > span { display: none; }
+  .page { display: block; padding: 0; }
+  .manual { max-width: none; }
+  .intro-card, .guide-section { margin: 0; padding: 6mm 0; border: 0; border-top: 1px solid #bbb; border-radius: 0; background: #fff; box-shadow: none; }
+  .intro-card { border-top: 2px solid var(--forest); }
+  .manual h2 { margin-bottom: 4mm; padding-bottom: 2mm; font-size: 18pt; break-after: avoid; }
+  .manual h3 { margin-top: 6mm; font-size: 13pt; break-after: avoid; }
+  .heading-anchor { display: none; }
+  p, li { orphans: 3; widows: 3; }
+  a { color: #000; text-decoration: underline; }
+  code { color: #000; border: 1px solid #ccc; background: #f5f5f5; }
+  .table-scroll { overflow: visible; border-color: #777; break-inside: auto; }
+  table { min-width: 0; font-size: 8.2pt; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  th, td { padding: 2mm; border-color: #aaa; }
+  thead th { color: #000; border-bottom: 2px solid #333; background: #e9e9e9; }
+  tbody th, tbody tr:nth-child(even) td { background: #f7f7f7; }
+  .code-block { margin: 4mm 0; border-color: #999; border-radius: 0; background: #fff; box-shadow: none; break-inside: avoid; }
+  .code-block--long { break-inside: auto; }
+  .code-block figcaption { min-height: auto; padding: 2mm 3mm; color: #000; border-color: #aaa; background: #eee; }
+  .code-block pre { padding: 3mm; overflow: visible; color: #000; font-size: 7.8pt; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .code-block pre code { min-width: 0; color: #000; border: 0; background: transparent; }
+  .check-item { break-inside: avoid; border-color: #aaa; background: #fff; }
+  .check-box { border-color: #000; }
+}
+</style>
+</head>
+<body class="guide guide--user">
+  <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
+  <header class="topbar">
+    <div class="shell topbar__inner">
+      <a class="brand" href="#top" aria-label="AutoData Lab 설명서 맨 위로">
+        <span class="brand__mark" aria-hidden="true">A</span>
+        <span class="brand__text"><strong>AutoData Lab</strong><small>USED CAR COLLECTION CLASSROOM</small></span>
+      </a>
+      <nav class="role-nav" aria-label="역할별 설명서">
+        <span class="role-pill" aria-current="page">사용자용</span>
+        <a class="role-link" href="DEPLOYER_GUIDE.html">배포자용 설명서</a>
+      </nav>
+    </div>
+  </header>
+  <section class="hero" id="top">
+    <div class="shell hero__inner">
+      <div><p class="eyebrow">USER GUIDE · CLASSROOM CLIENT</p><h1>AutoData Lab 사용자용 사용설명서</h1><p class="hero__copy">사용자(수강생)는 서버 주소와 API 키만 받아 브라우저, curl, Python으로 바로 실습합니다.</p></div>
+      <ul class="fact-list" aria-label="핵심 안내"><li>서버 설치 불필요</li><li>주소 + API 키</li><li>HTML 간격 · 1초</li></ul>
+    </div>
+  </section>
+  <p class="security-note"><span aria-hidden="true">●</span> API 키는 URL·소스 코드·Git·노트북 출력에 남기지 않습니다.</p>
+  <div class="shell page">
+    <aside class="toc"><details open><summary>문서 목차</summary><ol><li class="toc-level-2"><a href="#section-1">1. 준비물과 환경 변수</a></li><li class="toc-level-3"><a href="#section-1-1">macOS 또는 Linux</a></li><li class="toc-level-3"><a href="#section-1-2">Windows PowerShell</a></li><li class="toc-level-2"><a href="#section-2">2. 접속과 수집 정책 확인</a></li><li class="toc-level-2"><a href="#section-3">3. 브라우저 화면 사용법</a></li><li class="toc-level-3"><a href="#section-3-1">차량 목록과 상세</a></li><li class="toc-level-3"><a href="#section-3-2">API 문서와 탐색기</a></li><li class="toc-level-2"><a href="#section-4">4. HTML 수집 실습</a></li><li class="toc-level-3"><a href="#section-4-1">안정적인 선택자</a></li><li class="toc-level-3"><a href="#section-4-2">Python 환경 준비</a></li><li class="toc-level-3"><a href="#section-4-3">최대 3페이지 수집 예제</a></li><li class="toc-level-2"><a href="#section-5">5. API 키와 JSON API</a></li><li class="toc-level-3"><a href="#section-5-1">엔드포인트</a></li><li class="toc-level-2"><a href="#section-6">6. 필터와 페이지네이션</a></li><li class="toc-level-3"><a href="#section-6-1">차량 필터 계약</a></li><li class="toc-level-3"><a href="#section-6-2">`data`, `meta`, `links`</a></li><li class="toc-level-2"><a href="#section-7">7. 커서, epoch, UPSERT로 전체 수집</a></li><li class="toc-level-3"><a href="#section-7-1">SQLite 체크포인트 예제</a></li><li class="toc-level-2"><a href="#section-8">8. 변경 로그 증분 수집</a></li><li class="toc-level-2"><a href="#section-9">9. CSV와 업무영역 데이터</a></li><li class="toc-level-2"><a href="#section-10">10. 보안과 수집 예절</a></li><li class="toc-level-2"><a href="#section-11">11. 오류와 문제 해결</a></li><li class="toc-level-2"><a href="#section-12">12. 권장 학습 순서</a></li><li class="toc-level-2"><a href="#section-13">13. 제출 전 체크리스트</a></li></ol></details></aside>
+    <main class="manual" id="main-content"><section class="intro-card" aria-label="문서 소개"><p>이 문서는 배포자가 실행해 둔 AutoData Lab에 접속해 중고차 HTML과 JSON API를 수집하는 사용자(수강생)용 안내서입니다. 수강생에게 필요한 것은 다음 두 가지입니다.</p><ul><li>배포자가 알려 준 서버 주소(예: <code>http://192.168.0.23:4000</code>)</li><li>배포자가 안전한 방법으로 전달한 API 키(형식: <code>ucar_v1_...</code>)</li></ul><p>수강생은 Docker, MySQL, MongoDB, Node.js 서버를 설치하거나 실행하지 않습니다. 이 문서의 <code>127.0.0.1</code>은 서버와 실습 코드가 같은 컴퓨터에서 실행될 때만 유효합니다. 교실 서버에 접속할 때는 반드시 배포자가 알려 준 주소를 사용하세요.</p></section><section class="guide-section" aria-labelledby="section-1"><h2 id="section-1">1. 준비물과 환경 변수<a class="heading-anchor" href="#section-1" aria-label="1. 준비물과 환경 변수 바로가기">#</a></h2><p>필수 준비물은 웹 브라우저와 <code>curl</code>입니다. Python 수집 실습까지 진행한다면 Python 3.10 이상을 준비합니다.</p><p>서버 주소 끝에는 <code>/</code>를 붙이지 않는 것을 권장합니다.</p><h3 id="section-1-1">macOS 또는 Linux<a class="heading-anchor" href="#section-1-1" aria-label="macOS 또는 Linux 바로가기">#</a></h3><figure class="code-block" data-code-block>
+    <figcaption><span>Terminal · bash</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 1 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-bash">export AUTODATA_BASE_URL=&#39;http://192.168.0.23:4000&#39;
+printf &#39;API 키: &#39;
+read -r -s AUTODATA_API_KEY
+printf &#39;\n&#39;
+export AUTODATA_API_KEY</code></pre>
+  </figure><p><code>API 키:</code>가 표시되면 배포자가 전달한 원문 키를 붙여 넣고 Enter를 누릅니다. 입력한 문자는 화면과 셸 명령 기록에 표시되지 않습니다.</p><h3 id="section-1-2">Windows PowerShell<a class="heading-anchor" href="#section-1-2" aria-label="Windows PowerShell 바로가기">#</a></h3><figure class="code-block" data-code-block>
+    <figcaption><span>Windows · PowerShell</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 2 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-powershell">$env:AUTODATA_BASE_URL = &#39;http://192.168.0.23:4000&#39;
+$secureKey = Read-Host &#39;API 키&#39; -AsSecureString
+$env:AUTODATA_API_KEY = [System.Net.NetworkCredential]::new(&#39;&#39;, $secureKey).Password
+Remove-Variable secureKey</code></pre>
+  </figure><p>PowerShell에서도 프롬프트가 나타난 뒤 원문 키를 입력합니다. 키 원문을 <code>$env:AUTODATA_API_KEY = &#39;...&#39;</code> 형태로 직접 명령 기록에 남기지 마세요.</p><p>환경 변수는 현재 터미널 창에서만 사용합니다. 공용 컴퓨터에서는 실습이 끝난 뒤 키를 제거하세요.</p><p>macOS 또는 Linux:</p><figure class="code-block" data-code-block>
+    <figcaption><span>Terminal · bash</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 3 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-bash">unset AUTODATA_API_KEY</code></pre>
+  </figure><p>Windows PowerShell:</p><figure class="code-block" data-code-block>
+    <figcaption><span>Windows · PowerShell</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 4 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-powershell">Remove-Item Env:AUTODATA_API_KEY</code></pre>
+  </figure></section><section class="guide-section" aria-labelledby="section-2"><h2 id="section-2">2. 접속과 수집 정책 확인<a class="heading-anchor" href="#section-2" aria-label="2. 접속과 수집 정책 확인 바로가기">#</a></h2><p>먼저 API 키가 필요 없는 상태 확인 경로를 호출합니다.</p><p>macOS 또는 Linux:</p><figure class="code-block" data-code-block>
+    <figcaption><span>Terminal · bash</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 5 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-bash">curl --include &quot;$AUTODATA_BASE_URL/healthz&quot;
+curl &quot;$AUTODATA_BASE_URL/robots.txt&quot;</code></pre>
+  </figure><p>Windows PowerShell에서는 <code>curl</code>이 다른 명령의 별칭일 수 있으므로 이 문서에서는 <code>curl.exe</code>를 사용합니다.</p><figure class="code-block" data-code-block>
+    <figcaption><span>Windows · PowerShell</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 6 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-powershell">curl.exe --include &quot;${env:AUTODATA_BASE_URL}/healthz&quot;
+curl.exe &quot;${env:AUTODATA_BASE_URL}/robots.txt&quot;</code></pre>
+  </figure><p>정상 상태라면 <code>/healthz</code>가 <code>200 OK</code>와 함께 <code>&quot;ok&quot;: true</code>를 반환합니다. <code>503</code>이거나 연결되지 않으면 반복 요청하지 말고 배포자에게 알리세요.</p><p>브라우저에서도 다음 주소를 차례로 엽니다.</p><ol><li><code>&lt;서버 주소&gt;/crawl-policy</code></li><li><code>&lt;서버 주소&gt;/robots.txt</code></li><li><code>&lt;서버 주소&gt;/cars?page_size=5</code></li></ol><p><code>robots.txt</code>는 공개 HTML 경로를 안내하고 일반 웹 크롤러가 <code>/api/</code>를 순회하지 않도록 제한합니다. 수업용 JSON API는 배포자가 발급한 키를 헤더에 넣어 사용하는 별도 경로입니다. HTML 수집 요청 사이에는 최소 1초를 기다리세요. 이 서버의 수집 허가는 다른 웹사이트에 적용되지 않습니다.</p></section><section class="guide-section" aria-labelledby="section-3"><h2 id="section-3">3. 브라우저 화면 사용법<a class="heading-anchor" href="#section-3" aria-label="3. 브라우저 화면 사용법 바로가기">#</a></h2><div class="table-scroll" role="region" tabindex="0" aria-label="3. 브라우저 화면 사용법 표 1"><table><caption class="sr-only">3. 브라우저 화면 사용법 표 1</caption><thead><tr><th scope="col" class="align-left">경로</th><th scope="col" class="align-left">인증</th><th scope="col" class="align-left">용도</th></tr></thead><tbody><tr><th scope="row" class="align-left"><code>/</code></th><td class="align-left">공개</td><td class="align-left">데이터셋 현황과 실습 메뉴</td></tr><tr><th scope="row" class="align-left"><code>/cars</code></th><td class="align-left">공개</td><td class="align-left">차량 검색·필터·정렬·페이지 이동</td></tr><tr><th scope="row" class="align-left"><code>/cars/:id</code></th><td class="align-left">공개</td><td class="align-left">차량 한 건의 상세 정보</td></tr><tr><th scope="row" class="align-left"><code>/changes</code></th><td class="align-left">공개</td><td class="align-left">고정된 상한까지 변경 이벤트 순회</td></tr><tr><th scope="row" class="align-left"><code>/generation-runs</code></th><td class="align-left">공개</td><td class="align-left">데이터 생성 상태 이벤트 순회</td></tr><tr><th scope="row" class="align-left"><code>/docs</code></th><td class="align-left">공개</td><td class="align-left">API 요약과 브라우저 API 탐색기</td></tr><tr><th scope="row" class="align-left"><code>/learning-guide</code></th><td class="align-left">공개</td><td class="align-left">HTML·API·CSV 관계 학습 순서</td></tr><tr><th scope="row" class="align-left"><code>/crawl-policy</code></th><td class="align-left">공개</td><td class="align-left">이 서버에서 허용한 수집 범위</td></tr></tbody></table></div><h3 id="section-3-1">차량 목록과 상세<a class="heading-anchor" href="#section-3-1" aria-label="차량 목록과 상세 바로가기">#</a></h3><p><code>/cars</code>에서는 검색어, 브랜드, 연료, 판매 상태, 차량 소재지, 최소 연식, 최대 주행거리, 최소·최대 가격, 정렬 방식, 표시 개수를 선택한 뒤 <strong>조건 적용</strong>을 누릅니다. 표시 개수는 12, 24, 48, 100개 중에서 고를 수 있고, HTML 목록의 기본값은 24개입니다.</p><p>차량 제목을 누르면 <code>/cars/:id</code> 상세 화면으로 이동합니다. 목록 아래의 <strong>이전</strong>, <strong>다음</strong> 링크를 사용하고, 마지막 페이지에서 <strong>다음</strong>이 비활성화되면 정상 종료입니다. 조건에 맞는 차량이 없을 때 0건이 표시되는 것도 정상 결과입니다.</p><h3 id="section-3-2">API 문서와 탐색기<a class="heading-anchor" href="#section-3-2" aria-label="API 문서와 탐색기 바로가기">#</a></h3><p><code>/docs</code>에는 현재 서버 주소, 엔드포인트, 필터 표, API 탐색기가 있습니다. 탐색기에서 API 키와 조건을 입력하고 <strong>GET 요청 보내기</strong>를 누르면 상태 코드와 JSON 응답을 확인할 수 있습니다. 탐색기는 키를 브라우저 저장소에 저장하지 않지만, 공용 화면에 키가 보이거나 캡처되지 않도록 주의하고 사용 후 페이지를 닫으세요.</p></section><section class="guide-section" aria-labelledby="section-4"><h2 id="section-4">4. HTML 수집 실습<a class="heading-anchor" href="#section-4" aria-label="4. HTML 수집 실습 바로가기">#</a></h2><h3 id="section-4-1">안정적인 선택자<a class="heading-anchor" href="#section-4-1" aria-label="안정적인 선택자 바로가기">#</a></h3><p>화면에 보이는 가격과 주행거리에는 쉼표, <code>원</code>, <code>km</code>가 포함됩니다. 가능하면 화면 문자열을 다시 계산하지 말고 <code>value</code>와 <code>data-*</code> 원시 값을 사용하세요.</p><div class="table-scroll" role="region" tabindex="0" aria-label="안정적인 선택자 표 2"><table><caption class="sr-only">안정적인 선택자 표 2</caption><thead><tr><th scope="col" class="align-left">대상</th><th scope="col" class="align-left">CSS 선택자 또는 속성</th></tr></thead><tbody><tr><th scope="row" class="align-left">목록 컨테이너</th><td class="align-left"><code>[data-car-list]</code></td></tr><tr><th scope="row" class="align-left">차량 카드</th><td class="align-left"><code>article.car-card[data-car-id]</code></td></tr><tr><th scope="row" class="align-left">차량 ID</th><td class="align-left">카드의 <code>data-car-id</code></td></tr><tr><th scope="row" class="align-left">매물 번호</th><td class="align-left">카드의 <code>data-listing-number</code></td></tr><tr><th scope="row" class="align-left">판매 상태</th><td class="align-left">카드의 <code>data-status</code></td></tr><tr><th scope="row" class="align-left">제목</th><td class="align-left"><code>[data-field=&quot;title&quot;]</code></td></tr><tr><th scope="row" class="align-left">상세 링크</th><td class="align-left"><code>[data-field=&quot;title&quot;] a[href]</code></td></tr><tr><th scope="row" class="align-left">가격 원시 값</th><td class="align-left"><code>data[data-field=&quot;price&quot;]</code>의 <code>value</code></td></tr><tr><th scope="row" class="align-left">연식</th><td class="align-left"><code>[data-field=&quot;model-year&quot;]</code></td></tr><tr><th scope="row" class="align-left">주행거리</th><td class="align-left"><code>[data-field=&quot;mileage&quot;]</code></td></tr><tr><th scope="row" class="align-left">연료</th><td class="align-left"><code>[data-field=&quot;fuel&quot;]</code></td></tr><tr><th scope="row" class="align-left">소재지</th><td class="align-left"><code>[data-field=&quot;location&quot;]</code></td></tr><tr><th scope="row" class="align-left">다음 페이지</th><td class="align-left"><code>a[rel=&quot;next&quot;]</code></td></tr></tbody></table></div><h3 id="section-4-2">Python 환경 준비<a class="heading-anchor" href="#section-4-2" aria-label="Python 환경 준비 바로가기">#</a></h3><p>macOS 또는 Linux:</p><figure class="code-block" data-code-block>
+    <figcaption><span>Terminal · bash</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 7 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-bash">python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install requests beautifulsoup4</code></pre>
+  </figure><p>Windows PowerShell:</p><figure class="code-block" data-code-block>
+    <figcaption><span>Windows · PowerShell</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 8 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-powershell">py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+py -m pip install requests beautifulsoup4</code></pre>
+  </figure><h3 id="section-4-3">최대 3페이지 수집 예제<a class="heading-anchor" href="#section-4-3" aria-label="최대 3페이지 수집 예제 바로가기">#</a></h3><p>다음 코드는 현재 문서의 <code>a[rel=&quot;next&quot;]</code>를 따라가며 요청 사이에 1초를 기다립니다. 다음 URL을 페이지 번호로 직접 추측하지 않습니다.</p><figure class="code-block" data-code-block>
+    <figcaption><span>Python</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 9 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-python">import os
+import time
+from urllib.parse import urljoin
+
+import requests
+from bs4 import BeautifulSoup
+
+BASE_URL = os.environ[&quot;AUTODATA_BASE_URL&quot;].rstrip(&quot;/&quot;)
+session = requests.Session()
+session.headers.update({&quot;User-Agent&quot;: &quot;AutoData-Classroom/1.0&quot;})
+
+url = f&quot;{BASE_URL}/cars?page_size=24&quot;
+seen_ids = set()
+records = []
+
+for _ in range(3):
+    response = session.get(url, timeout=10)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, &quot;html.parser&quot;)
+
+    cards = soup.select(&#39;[data-car-list] article.car-card[data-car-id]&#39;)
+    for card in cards:
+        car_id = int(card[&quot;data-car-id&quot;])
+        if car_id in seen_ids:
+            raise RuntimeError(f&quot;중복 차량 ID: {car_id}&quot;)
+        seen_ids.add(car_id)
+
+        title = card.select_one(&#39;[data-field=&quot;title&quot;]&#39;)
+        price = card.select_one(&#39;data[data-field=&quot;price&quot;]&#39;)
+        detail = card.select_one(&#39;[data-field=&quot;title&quot;] a[href]&#39;)
+        if title is None or price is None or detail is None:
+            raise RuntimeError(f&quot;필수 선택자 누락: {car_id}&quot;)
+
+        records.append({
+            &quot;id&quot;: car_id,
+            &quot;listing_number&quot;: card.get(&quot;data-listing-number&quot;),
+            &quot;title&quot;: title.get_text(&quot; &quot;, strip=True),
+            &quot;price&quot;: int(price[&quot;value&quot;]),
+            &quot;status&quot;: card.get(&quot;data-status&quot;),
+            &quot;detail_url&quot;: urljoin(response.url, detail[&quot;href&quot;]),
+        })
+
+    next_link = soup.select_one(&#39;a[rel=&quot;next&quot;]&#39;)
+    if next_link is None:
+        break
+
+    url = urljoin(response.url, next_link[&quot;href&quot;])
+    time.sleep(1.0)
+
+print(&quot;수집 건수:&quot;, len(records))
+print(&quot;고유 ID 수:&quot;, len(seen_ids))
+print(records[:2])</code></pre>
+  </figure><p>응답 상태를 확인한 뒤 파싱하고, 카드가 0개라고 즉시 프로그램 오류로 판단하지 마세요. 필터 결과가 없거나 마지막 범위를 지난 경우일 수 있습니다.</p></section><section class="guide-section" aria-labelledby="section-5"><h2 id="section-5">5. API 키와 JSON API<a class="heading-anchor" href="#section-5" aria-label="5. API 키와 JSON API 바로가기">#</a></h2><p><code>/api/v1/*</code>의 <code>GET</code>과 <code>HEAD</code> 요청에는 API 키가 필요합니다. 다음 두 인증 방식 가운데 하나만 사용합니다.</p><p>macOS 또는 Linux:</p><figure class="code-block" data-code-block>
+    <figcaption><span>Terminal · bash</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 10 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-bash">curl --include &quot;$AUTODATA_BASE_URL/api/v1/cars?page_size=5&quot; \
+  -H &quot;X-API-Key: $AUTODATA_API_KEY&quot;
+
+curl &quot;$AUTODATA_BASE_URL/api/v1/stats&quot; \
+  -H &quot;Authorization: Bearer $AUTODATA_API_KEY&quot;</code></pre>
+  </figure><p>Windows PowerShell:</p><figure class="code-block" data-code-block>
+    <figcaption><span>Windows · PowerShell</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 11 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-powershell">curl.exe --include &quot;${env:AUTODATA_BASE_URL}/api/v1/cars?page_size=5&quot; `
+  -H &quot;X-API-Key: $env:AUTODATA_API_KEY&quot;
+
+curl.exe &quot;${env:AUTODATA_BASE_URL}/api/v1/stats&quot; `
+  -H &quot;Authorization: Bearer $env:AUTODATA_API_KEY&quot;</code></pre>
+  </figure><p>API 키를 URL의 쿼리 문자열에 넣지 마세요. <code>X-API-Key</code>와 <code>Authorization</code>을 한 요청에 동시에 보내면 <code>403</code>입니다. 정상 응답에 보이는 <code>X-API-Key-Prefix</code>는 원문 키가 아니라 공개 식별용 prefix입니다.</p><h3 id="section-5-1">엔드포인트<a class="heading-anchor" href="#section-5-1" aria-label="엔드포인트 바로가기">#</a></h3><div class="table-scroll" role="region" tabindex="0" aria-label="엔드포인트 표 3"><table><caption class="sr-only">엔드포인트 표 3</caption><thead><tr><th scope="col" class="align-left">경로</th><th scope="col" class="align-left">용도</th></tr></thead><tbody><tr><th scope="row" class="align-left"><code>/api/v1/cars</code></th><td class="align-left">검색·필터·정렬·페이지 조회</td></tr><tr><th scope="row" class="align-left"><code>/api/v1/cars/cursor</code></th><td class="align-left">전체 차량을 ID 커서로 순회</td></tr><tr><th scope="row" class="align-left"><code>/api/v1/changes</code></th><td class="align-left">성공이 검증된 변경 이벤트 증분 수집</td></tr><tr><th scope="row" class="align-left"><code>/api/v1/generation-runs</code></th><td class="align-left">append-only 생성 상태 이벤트 수집</td></tr><tr><th scope="row" class="align-left"><code>/api/v1/cars/:id</code></th><td class="align-left">차량 한 건 조회</td></tr><tr><th scope="row" class="align-left"><code>/api/v1/brands</code></th><td class="align-left">브랜드와 차량 수</td></tr><tr><th scope="row" class="align-left"><code>/api/v1/locations</code></th><td class="align-left">실제 차량 소재지와 차량 수</td></tr><tr><th scope="row" class="align-left"><code>/api/v1/business-areas</code></th><td class="align-left">업무영역과 공개용 관리자 정보</td></tr><tr><th scope="row" class="align-left"><code>/api/v1/stats</code></th><td class="align-left">데이터셋 통계와 현재 epoch</td></tr></tbody></table></div></section><section class="guide-section" aria-labelledby="section-6"><h2 id="section-6">6. 필터와 페이지네이션<a class="heading-anchor" href="#section-6" aria-label="6. 필터와 페이지네이션 바로가기">#</a></h2><h3 id="section-6-1">차량 필터 계약<a class="heading-anchor" href="#section-6-1" aria-label="차량 필터 계약 바로가기">#</a></h3><p><code>/api/v1/cars</code>의 JSON 속성은 <code>camelCase</code>, 쿼리와 페이지 메타데이터는 <code>snake_case</code>입니다.</p><div class="table-scroll" role="region" tabindex="0" aria-label="차량 필터 계약 표 4"><table><caption class="sr-only">차량 필터 계약 표 4</caption><thead><tr><th scope="col" class="align-left">매개변수</th><th scope="col" class="align-left">허용값과 의미</th></tr></thead><tbody><tr><th scope="row" class="align-left"><code>page</code></th><td class="align-left">1~100,000 정수, 기본값 1</td></tr><tr><th scope="row" class="align-left"><code>page_size</code></th><td class="align-left">1~100 정수, 기본값 20</td></tr><tr><th scope="row" class="align-left"><code>q</code></th><td class="align-left">최대 100자, 제목·설명 검색</td></tr><tr><th scope="row" class="align-left"><code>brand</code></th><td class="align-left">브랜드 양의 숫자 ID 또는 slug</td></tr><tr><th scope="row" class="align-left"><code>location</code></th><td class="align-left">소재지 양의 숫자 ID 또는 slug</td></tr><tr><th scope="row" class="align-left"><code>fuel</code></th><td class="align-left"><code>가솔린</code>, <code>디젤</code>, <code>하이브리드</code>, <code>전기</code>, <code>LPG</code></td></tr><tr><th scope="row" class="align-left"><code>status</code></th><td class="align-left"><code>AVAILABLE</code>, <code>RESERVED</code>, <code>SOLD</code></td></tr><tr><th scope="row" class="align-left"><code>min_price</code>, <code>max_price</code></th><td class="align-left">0~1,000,000,000, 경계 포함</td></tr><tr><th scope="row" class="align-left"><code>min_year</code>, <code>max_year</code></th><td class="align-left">1990~2030, 경계 포함</td></tr><tr><th scope="row" class="align-left"><code>max_mileage</code></th><td class="align-left">0~1,000,000km, 경계 포함</td></tr><tr><th scope="row" class="align-left"><code>accident_free</code></th><td class="align-left"><code>true</code>/<code>false</code> 또는 <code>1</code>/<code>0</code></td></tr><tr><th scope="row" class="align-left"><code>sort</code></th><td class="align-left"><code>newest</code>, <code>price_asc</code>, <code>price_desc</code>, <code>mileage_asc</code>, <code>year_desc</code></td></tr></tbody></table></div><p><code>min_price</code>는 <code>max_price</code>보다 클 수 없고 <code>min_year</code>는 <code>max_year</code>보다 클 수 없습니다. 브랜드와 소재지의 실제 slug는 <code>/api/v1/brands</code>, <code>/api/v1/locations</code>에서 먼저 확인하세요. 알 수 없는 쿼리 이름은 무시되므로 오탈자가 있어도 오류가 나지 않을 수 있습니다.</p><p>macOS 또는 Linux 필터 예제:</p><figure class="code-block" data-code-block>
+    <figcaption><span>Terminal · bash</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 12 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-bash">curl --get &quot;$AUTODATA_BASE_URL/api/v1/cars&quot; \
+  -H &quot;X-API-Key: $AUTODATA_API_KEY&quot; \
+  --data-urlencode &#39;page=1&#39; \
+  --data-urlencode &#39;page_size=50&#39; \
+  --data-urlencode &#39;brand=hyundai&#39; \
+  --data-urlencode &#39;fuel=하이브리드&#39; \
+  --data-urlencode &#39;status=AVAILABLE&#39; \
+  --data-urlencode &#39;min_year=2020&#39; \
+  --data-urlencode &#39;max_mileage=80000&#39; \
+  --data-urlencode &#39;accident_free=true&#39; \
+  --data-urlencode &#39;sort=price_asc&#39;</code></pre>
+  </figure><p>Windows PowerShell 필터 예제:</p><figure class="code-block" data-code-block>
+    <figcaption><span>Windows · PowerShell</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 13 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-powershell">curl.exe --get &quot;${env:AUTODATA_BASE_URL}/api/v1/cars&quot; `
+  -H &quot;X-API-Key: $env:AUTODATA_API_KEY&quot; `
+  --data-urlencode &quot;page=1&quot; `
+  --data-urlencode &quot;page_size=50&quot; `
+  --data-urlencode &quot;brand=hyundai&quot; `
+  --data-urlencode &quot;fuel=하이브리드&quot; `
+  --data-urlencode &quot;status=AVAILABLE&quot; `
+  --data-urlencode &quot;min_year=2020&quot; `
+  --data-urlencode &quot;max_mileage=80000&quot; `
+  --data-urlencode &quot;accident_free=true&quot; `
+  --data-urlencode &quot;sort=price_asc&quot;</code></pre>
+  </figure><h3 id="section-6-2"><code>data</code>, <code>meta</code>, <code>links</code><a class="heading-anchor" href="#section-6-2" aria-label="&#96;data&#96;, &#96;meta&#96;, &#96;links&#96; 바로가기">#</a></h3><p>목록 응답은 다음 세 부분으로 나뉩니다.</p><ul><li><code>data</code>: 현재 페이지의 차량 배열</li><li><code>meta</code>: <code>page</code>, <code>page_size</code>, <code>total</code>, <code>total_pages</code>, <code>returned</code>, 적용된 필터와 정렬</li><li><code>links</code>: <code>self</code>, <code>previous</code>, <code>next</code></li></ul><p>첫 페이지의 <code>previous</code>와 마지막 페이지의 <code>next</code>는 <code>null</code>입니다. 범위를 벗어난 페이지와 검색 결과 0건은 오류가 아니라 <code>200 OK</code>와 빈 <code>data</code> 배열을 반환합니다. 다음 URL을 직접 조립하지 말고 서버가 반환한 <code>links.next</code>를 사용하세요. <code>links.next</code>에는 API 키가 없으므로 매 요청에 인증 헤더를 다시 보냅니다.</p><p>다음 Python 예제는 필터를 적용한 모든 페이지를 순회합니다.</p><figure class="code-block" data-code-block>
+    <figcaption><span>Python</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 14 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-python">import os
+import time
+from urllib.parse import urljoin
+
+import requests
+
+BASE_URL = os.environ[&quot;AUTODATA_BASE_URL&quot;].rstrip(&quot;/&quot;)
+API_KEY = os.environ[&quot;AUTODATA_API_KEY&quot;]
+
+session = requests.Session()
+session.headers.update({
+    &quot;X-API-Key&quot;: API_KEY,
+    &quot;User-Agent&quot;: &quot;AutoData-Classroom/1.0&quot;,
+})
+
+path = &quot;/api/v1/cars?brand=hyundai&amp;status=AVAILABLE&amp;page_size=100&amp;sort=price_asc&quot;
+seen_ids = set()
+
+while path:
+    response = session.get(urljoin(BASE_URL + &quot;/&quot;, path), timeout=10)
+    response.raise_for_status()
+    payload = response.json()
+
+    for car in payload[&quot;data&quot;]:
+        if car[&quot;id&quot;] in seen_ids:
+            raise RuntimeError(f&quot;중복 차량 ID: {car[&#39;id&#39;]}&quot;)
+        seen_ids.add(car[&quot;id&quot;])
+
+    print(&quot;page:&quot;, payload[&quot;meta&quot;][&quot;page&quot;], &quot;returned:&quot;, payload[&quot;meta&quot;][&quot;returned&quot;])
+    path = payload[&quot;links&quot;][&quot;next&quot;]
+    if path:
+        time.sleep(1.0)
+
+print(&quot;고유 차량 수:&quot;, len(seen_ids))</code></pre>
+  </figure><p>페이지 번호 방식은 조건 검색과 화면 탐색에 적합합니다. 전체 데이터 적재에는 큰 <code>OFFSET</code> 대신 다음 절의 커서를 사용하세요.</p></section><section class="guide-section" aria-labelledby="section-7"><h2 id="section-7">7. 커서, epoch, UPSERT로 전체 수집<a class="heading-anchor" href="#section-7" aria-label="7. 커서, epoch, UPSERT로 전체 수집 바로가기">#</a></h2><p>첫 요청은 다음과 같습니다.</p><p>macOS 또는 Linux:</p><figure class="code-block" data-code-block>
+    <figcaption><span>Terminal · bash</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 15 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-bash">curl --get &quot;$AUTODATA_BASE_URL/api/v1/cars/cursor&quot; \
+  -H &quot;X-API-Key: $AUTODATA_API_KEY&quot; \
+  --data-urlencode &#39;after_id=0&#39; \
+  --data-urlencode &#39;limit=500&#39;</code></pre>
+  </figure><p>Windows PowerShell:</p><figure class="code-block" data-code-block>
+    <figcaption><span>Windows · PowerShell</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 16 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-powershell">curl.exe --get &quot;${env:AUTODATA_BASE_URL}/api/v1/cars/cursor&quot; `
+  -H &quot;X-API-Key: $env:AUTODATA_API_KEY&quot; `
+  --data-urlencode &quot;after_id=0&quot; `
+  --data-urlencode &quot;limit=500&quot;</code></pre>
+  </figure><p>커서의 핵심 값은 다음과 같습니다.</p><ul><li><code>after_id</code>: 마지막으로 저장을 완료한 차량 ID</li><li><code>until_id</code>: 첫 응답이 고정한 이번 전체 수집의 상한</li><li><code>dataset_epoch</code>: 재시드 여부를 판별하는 데이터셋 식별자</li><li><code>limit</code>: 1~500</li></ul><p>첫 응답의 <code>meta.until_id</code>와 <code>meta.dataset_epoch</code>는 이번 순회가 끝날 때까지 바꾸지 않습니다. 서버가 반환한 <code>links.next</code>에는 이 값이 포함됩니다. <code>links.next == null</code> 또는 <code>meta.has_more == false</code>이면 완료입니다. 이 API는 필터와 임의 정렬을 지원하지 않고 ID 오름차순으로만 반환합니다.</p><p>수집 결과에는 <code>id</code> 또는 <code>listingNumber</code> UNIQUE 제약을 두고 UPSERT합니다. 한 묶음의 차량 저장과 체크포인트 갱신은 같은 트랜잭션에서 커밋해야 합니다. 그래야 중간에 프로그램이 종료되어도 마지막으로 완전히 저장한 위치부터 안전하게 다시 시작할 수 있습니다.</p><h3 id="section-7-1">SQLite 체크포인트 예제<a class="heading-anchor" href="#section-7-1" aria-label="SQLite 체크포인트 예제 바로가기">#</a></h3><p>다음 예제는 Python 표준 라이브러리 SQLite에 차량 JSON과 체크포인트를 저장합니다. 같은 묶음을 다시 받아도 차량 수가 증가하지 않습니다.</p><figure class="code-block code-block--long" data-code-block>
+    <figcaption><span>Python</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 17 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-python">import json
+import os
+import sqlite3
+import time
+from urllib.parse import urlencode, urljoin
+
+import requests
+
+BASE_URL = os.environ[&quot;AUTODATA_BASE_URL&quot;].rstrip(&quot;/&quot;)
+API_KEY = os.environ[&quot;AUTODATA_API_KEY&quot;]
+STREAM = &quot;cars-id-v1&quot;
+LIMIT = 500
+
+db = sqlite3.connect(&quot;collected-cars.sqlite3&quot;)
+db.execute(&quot;&quot;&quot;
+CREATE TABLE IF NOT EXISTS collected_cars (
+    id INTEGER PRIMARY KEY,
+    listing_number TEXT NOT NULL UNIQUE,
+    payload_json TEXT NOT NULL
+)
+&quot;&quot;&quot;)
+db.execute(&quot;&quot;&quot;
+CREATE TABLE IF NOT EXISTS collection_checkpoint (
+    stream_name TEXT PRIMARY KEY,
+    after_id INTEGER NOT NULL,
+    until_id INTEGER,
+    dataset_epoch TEXT
+)
+&quot;&quot;&quot;)
+db.commit()
+
+row = db.execute(
+    &quot;SELECT after_id, until_id, dataset_epoch FROM collection_checkpoint WHERE stream_name = ?&quot;,
+    (STREAM,),
+).fetchone()
+after_id, until_id, dataset_epoch = row if row else (0, None, None)
+
+params = {&quot;after_id&quot;: after_id, &quot;limit&quot;: LIMIT}
+if until_id is not None:
+    params[&quot;until_id&quot;] = until_id
+if dataset_epoch is not None:
+    params[&quot;dataset_epoch&quot;] = dataset_epoch
+path = &quot;/api/v1/cars/cursor?&quot; + urlencode(params)
+
+session = requests.Session()
+session.headers.update({
+    &quot;X-API-Key&quot;: API_KEY,
+    &quot;User-Agent&quot;: &quot;AutoData-Classroom/1.0&quot;,
+})
+
+while path:
+    response = session.get(urljoin(BASE_URL + &quot;/&quot;, path), timeout=20)
+    if response.status_code == 409:
+        current = response.json().get(&quot;error&quot;, {}).get(&quot;details&quot;, {}).get(&quot;current&quot;)
+        raise RuntimeError(
+            f&quot;데이터셋이 바뀌었습니다(current={current}). &quot;
+            &quot;기존 DB에 이어 쓰지 말고 새 파일 또는 namespace로 0부터 수집하세요.&quot;
+        )
+    response.raise_for_status()
+    payload = response.json()
+    cars = payload[&quot;data&quot;]
+    meta = payload[&quot;meta&quot;]
+
+    if until_id is None:
+        until_id = meta[&quot;until_id&quot;]
+    elif until_id != meta[&quot;until_id&quot;]:
+        raise RuntimeError(&quot;순회 중 until_id가 바뀌었습니다.&quot;)
+
+    if dataset_epoch is None:
+        dataset_epoch = meta[&quot;dataset_epoch&quot;]
+    elif dataset_epoch != meta[&quot;dataset_epoch&quot;]:
+        raise RuntimeError(&quot;순회 중 dataset_epoch가 바뀌었습니다.&quot;)
+
+    if not cars and meta[&quot;has_more&quot;]:
+        raise RuntimeError(&quot;빈 응답인데 has_more=true입니다.&quot;)
+
+    next_after_id = cars[-1][&quot;id&quot;] if cars else after_id
+    completed = not meta[&quot;has_more&quot;]
+
+    # 차량 UPSERT와 체크포인트를 한 트랜잭션으로 커밋합니다.
+    with db:
+        db.executemany(
+            &quot;&quot;&quot;
+            INSERT INTO collected_cars (id, listing_number, payload_json)
+            VALUES (?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                listing_number = excluded.listing_number,
+                payload_json = excluded.payload_json
+            &quot;&quot;&quot;,
+            [
+                (car[&quot;id&quot;], car[&quot;listingNumber&quot;], json.dumps(car, ensure_ascii=False))
+                for car in cars
+            ],
+        )
+        db.execute(
+            &quot;&quot;&quot;
+            INSERT INTO collection_checkpoint (stream_name, after_id, until_id, dataset_epoch)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(stream_name) DO UPDATE SET
+                after_id = excluded.after_id,
+                until_id = excluded.until_id,
+                dataset_epoch = excluded.dataset_epoch
+            &quot;&quot;&quot;,
+            (STREAM, next_after_id, None if completed else until_id, dataset_epoch),
+        )
+
+    after_id = next_after_id
+    print(&quot;checkpoint:&quot;, after_id, &quot;batch:&quot;, len(cars), &quot;epoch:&quot;, dataset_epoch)
+    path = payload[&quot;links&quot;][&quot;next&quot;]
+    if path:
+        time.sleep(1.0)
+
+total = db.execute(&quot;SELECT COUNT(*) FROM collected_cars&quot;).fetchone()[0]
+print(&quot;고유 차량 수:&quot;, total)
+db.close()</code></pre>
+  </figure><p><code>409 DATASET_EPOCH_CHANGED</code>는 배포자가 데이터를 재시드해 ID 수명주기가 바뀌었다는 뜻입니다. 기존 수집 DB에 새 데이터를 섞거나 체크포인트만 0으로 덮어쓰지 마세요. 기존 결과를 보존한 뒤 새 DB 파일 또는 별도 namespace를 만들고 새 epoch에서 다시 시작합니다.</p></section><section class="guide-section" aria-labelledby="section-8"><h2 id="section-8">8. 변경 로그 증분 수집<a class="heading-anchor" href="#section-8" aria-label="8. 변경 로그 증분 수집 바로가기">#</a></h2><p>전체 현재 상태는 <code>/api/v1/cars/cursor</code>, 이후 성공이 검증된 변경 이벤트는 <code>/api/v1/changes</code>로 수집합니다.</p><figure class="code-block" data-code-block>
+    <figcaption><span>Terminal · bash</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 18 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-bash">curl --get &quot;$AUTODATA_BASE_URL/api/v1/changes&quot; \
+  -H &quot;X-API-Key: $AUTODATA_API_KEY&quot; \
+  --data-urlencode &#39;after_seq=0&#39; \
+  --data-urlencode &#39;limit=500&#39;</code></pre>
+  </figure><p>첫 요청에서는 <code>until_seq</code>를 생략합니다. 서버가 현재 마지막 이벤트를 이번 실행의 high-water mark로 고정합니다. 이후에는 같은 <code>until_seq</code>와 <code>dataset_epoch</code>가 든 <code>links.next</code>를 그대로 따라갑니다. <code>eventId</code> 또는 <code>(listingNumber, entityVersion)</code>을 멱등 키로 사용하고, 이벤트 저장과 <code>after_seq</code> 체크포인트 갱신을 같은 트랜잭션으로 처리하세요.</p><p>수집 중 새 이벤트가 생겨도 고정된 <code>until_seq</code>보다 큰 이벤트는 다음 실행에서 처리합니다. 따라서 한 번의 순회는 유한하게 끝납니다. 자세한 응답 필드와 재시작 알고리즘은 <span class="project-reference">API 상세 문서(서버 실행 후 <code>서버 주소/docs</code>의 증분 변경 로그 항목)</span>를 참고하세요.</p></section><section class="guide-section" aria-labelledby="section-9"><h2 id="section-9">9. CSV와 업무영역 데이터<a class="heading-anchor" href="#section-9" aria-label="9. CSV와 업무영역 데이터 바로가기">#</a></h2><p>이 서버에는 CSV 다운로드 기능이 없습니다. <code>/api/v1/business-areas</code>는 서버가 보유한 직원·업무영역 관계에서 공개 가능한 필드만 JSON으로 제공하는 API입니다.</p><figure class="code-block" data-code-block>
+    <figcaption><span>Terminal · bash</span><span class="code-actions"><button type="button" data-wrap-code aria-pressed="false">줄바꿈</button><button type="button" data-copy-code aria-label="코드 예제 19 복사">복사</button></span></figcaption>
+    <pre tabindex="0"><code class="language-bash">curl --get &quot;$AUTODATA_BASE_URL/api/v1/business-areas&quot; \
+  -H &quot;X-API-Key: $AUTODATA_API_KEY&quot; \
+  --data-urlencode &#39;page=1&#39; \
+  --data-urlencode &#39;page_size=50&#39; \
+  --data-urlencode &#39;q=수도권&#39;</code></pre>
+  </figure><p><code>page</code>, <code>page_size</code>, <code>q</code>, <code>parent_id</code>를 사용할 수 있습니다. 응답의 관리자는 공개 코드와 마스킹된 표시명만 포함합니다.</p><p>원본 CSV 실습은 배포자가 승인된 파일을 별도 실습 자료로 제공했을 때만 진행합니다.</p><div class="table-scroll" role="region" tabindex="0" aria-label="9. CSV와 업무영역 데이터 표 5"><table><caption class="sr-only">9. CSV와 업무영역 데이터 표 5</caption><thead><tr><th scope="col" class="align-left">파일</th><th scope="col" class="align-right">검증된 행 수</th><th scope="col" class="align-left">의미</th></tr></thead><tbody><tr><th scope="row" class="align-left"><code>biz_employee_master.csv</code></th><td class="align-right">3,000</td><td class="align-left">직원 마스터, <code>EMP_NO</code>가 PK</td></tr><tr><th scope="row" class="align-left"><code>biz_meta_area_50000.csv</code></th><td class="align-right">50,000</td><td class="align-left">업무영역, <code>AREA_ID</code>가 PK</td></tr><tr><th scope="row" class="align-left"><code>biz_meta_area_parent_lookup.csv</code></th><td class="align-right">1,000</td><td class="align-left">상위 업무영역 snapshot</td></tr><tr><th scope="row" class="align-left"><code>biz_meta_area_join_ready.csv</code></th><td class="align-right">50,000</td><td class="align-left">정규화 조인 결과 검증용 snapshot</td></tr></tbody></table></div><p>CSV의 <code>AREA</code>는 주소나 행정구역이 아니라 생산, 영업, 물류, IT 같은 업무·조직 영역입니다. 차량의 실제 소재지는 API의 <code>location.province</code>, <code>location.city</code>입니다. 두 차원을 섞어 지도나 지역 통계를 만들지 마세요.</p><p>원본 CSV의 직원 번호와 이름은 관계 검증용 내부 필드입니다. 원본 행, 직원 이름·번호·입사일, SQL 덤프, 원문이 보이는 화면 캡처를 Git, 채팅방, 공개 저장소 또는 제출물에 포함하지 마세요. CSV의 상세 관계 검증 실습은 <span class="project-reference">학습 가이드의 CSV 절(서버 실행 후 <code>서버 주소/learning-guide</code>의 CSV 관계 절)</span>을 참고하세요.</p></section><section class="guide-section" aria-labelledby="section-10"><h2 id="section-10">10. 보안과 수집 예절<a class="heading-anchor" href="#section-10" aria-label="10. 보안과 수집 예절 바로가기">#</a></h2><ul><li>API 키는 요청 헤더로만 전달하고 URL, 소스 코드, Git, 노트북 출력, 로그에 남기지 않습니다.</li><li><code>links.next</code>를 공유하거나 기록할 수는 있지만, 헤더 전체나 API 키 원문은 기록하지 않습니다.</li><li>HTML 요청 사이에는 최소 1초를 기다립니다.</li><li>API 응답의 <code>RateLimit-Remaining</code>, <code>RateLimit-Reset</code>을 확인하고 <code>429</code>에서는 <code>Retry-After</code>가 지난 뒤 재개합니다.</li><li>한 번에 모든 응답을 메모리에 모으지 말고 페이지 또는 묶음 단위로 즉시 저장합니다.</li><li>중복 요청에 대비해 안정적인 ID와 UPSERT를 사용합니다.</li><li>공개 딜러 코드와 마스킹 이름은 가명처리된 값이지 완전한 익명정보가 아닙니다.</li><li>이 서버의 합성 데이터 수집 허가를 다른 웹사이트의 허가로 해석하지 않습니다.</li></ul></section><section class="guide-section" aria-labelledby="section-11"><h2 id="section-11">11. 오류와 문제 해결<a class="heading-anchor" href="#section-11" aria-label="11. 오류와 문제 해결 바로가기">#</a></h2><div class="table-scroll" role="region" tabindex="0" aria-label="11. 오류와 문제 해결 표 6"><table><caption class="sr-only">11. 오류와 문제 해결 표 6</caption><thead><tr><th scope="col" class="align-left">증상 또는 상태</th><th scope="col" class="align-left">의미와 조치</th></tr></thead><tbody><tr><th scope="row" class="align-left">연결 거부·시간 초과</th><td class="align-left">서버 주소와 포트, 같은 Wi-Fi, 배포자 서버 상태를 확인합니다. 수강생 PC에서 교실 서버를 <code>127.0.0.1</code>로 호출하지 마세요. 방화벽 또는 AP/클라이언트 격리는 배포자에게 확인합니다.</td></tr><tr><th scope="row" class="align-left">브라우저 탐색기의 <code>NETWORK ERROR</code></th><td class="align-left">서버 주소와 네트워크를 확인하고 <code>/healthz</code>를 먼저 호출합니다.</td></tr><tr><th scope="row" class="align-left"><code>400 INVALID_QUERY</code></th><td class="align-left">숫자 범위, 연료·상태·정렬값, 최소값과 최대값 순서를 고칩니다. 같은 요청을 그대로 반복하지 않습니다.</td></tr><tr><th scope="row" class="align-left"><code>401 API_KEY_REQUIRED</code></th><td class="align-left"><code>X-API-Key</code> 또는 Bearer 헤더가 빠졌습니다.</td></tr><tr><th scope="row" class="align-left"><code>403 API_KEY_INVALID</code></th><td class="align-left">키 오타·폐기 여부와 두 인증 헤더를 동시에 보냈는지 확인합니다.</td></tr><tr><th scope="row" class="align-left"><code>404 CAR_NOT_FOUND</code></th><td class="align-left">해당 숫자 차량 ID가 없습니다.</td></tr><tr><th scope="row" class="align-left"><code>404 ENDPOINT_NOT_FOUND</code></th><td class="align-left">API 경로와 <code>/api/v1</code> 접두사를 확인합니다.</td></tr><tr><th scope="row" class="align-left"><code>405 METHOD_NOT_ALLOWED</code></th><td class="align-left">API는 <code>GET</code>, <code>HEAD</code>, <code>OPTIONS</code>만 지원합니다.</td></tr><tr><th scope="row" class="align-left"><code>409 DATASET_EPOCH_CHANGED</code></th><td class="align-left">기존 적재를 멈추고 새 target과 체크포인트로 0부터 수집합니다.</td></tr><tr><th scope="row" class="align-left"><code>429 RATE_LIMITED</code></th><td class="align-left">즉시 요청을 멈추고 <code>Retry-After</code> 이후 재개합니다.</td></tr><tr><th scope="row" class="align-left"><code>503 DATASET_NOT_READY</code></th><td class="align-left">재시드가 끝나지 않았습니다. 배포자에게 알리고 기다립니다.</td></tr><tr><th scope="row" class="align-left"><code>503 SERVICE_UNAVAILABLE</code></th><td class="align-left">저장소가 일시적으로 혼잡하거나 연결되지 않았습니다. 무한 재시도하지 않습니다.</td></tr><tr><th scope="row" class="align-left">HTML 또는 API 결과 0건</th><td class="align-left">필터 조합과 현재 페이지를 확인합니다. 빈 결과는 정상일 수 있습니다.</td></tr><tr><th scope="row" class="align-left">HTML에서 필드 누락</th><td class="align-left">응답 상태, 선택자 오타, 상세와 목록 선택자를 혼동했는지 확인합니다.</td></tr><tr><th scope="row" class="align-left">커서 수집 중 중복</th><td class="align-left">데이터 저장과 체크포인트 갱신이 같은 트랜잭션인지, UPSERT 키가 <code>id</code> 또는 <code>listingNumber</code>인지 확인합니다.</td></tr><tr><th scope="row" class="align-left">커서 수집이 끝나지 않음</th><td class="align-left">요청의 이전 <code>after_id</code>가 아니라 마지막으로 저장한 차량 ID를 체크포인트에 기록했는지 확인합니다.</td></tr><tr><th scope="row" class="align-left">PowerShell에서 <code>curl</code> 옵션 오류</th><td class="align-left"><code>curl</code> 대신 Windows 실행 파일인 <code>curl.exe</code>를 사용합니다.</td></tr></tbody></table></div><p>기본 인증 API 제한은 키별 분당 60회이며 수업 환경에서 달라질 수 있습니다. <code>/healthz</code>는 HTTP 기준 저장소 상태를 보여 주지만 모든 저장소의 문서 일치까지 보장하지는 않습니다. 필요하면 <code>/generation-runs</code>와 <code>/api/v1/stats</code>의 <code>pendingChangeCount</code>를 함께 확인합니다.</p></section><section class="guide-section" aria-labelledby="section-12"><h2 id="section-12">12. 권장 학습 순서<a class="heading-anchor" href="#section-12" aria-label="12. 권장 학습 순서 바로가기">#</a></h2><ol><li><code>/crawl-policy</code>, <code>/robots.txt</code>, <code>/healthz</code>로 수집 범위와 서버 상태를 확인합니다.</li><li><code>/cars</code>에서 필터, 상세, 이전·다음 페이지를 직접 사용합니다.</li><li>BeautifulSoup으로 HTML 최대 3페이지를 수집하고 중복 ID와 필수 선택자를 검사합니다.</li><li><code>/docs</code> 탐색기와 <code>curl</code>로 API 인증, <code>401</code>, <code>403</code>의 차이를 확인합니다.</li><li><code>/api/v1/cars</code>에서 필터를 적용하고 <code>links.next</code>로 순회합니다.</li><li><code>/api/v1/cars/cursor</code>를 SQLite에 UPSERT하고 중단 후 체크포인트에서 재개합니다.</li><li><code>/api/v1/changes</code>의 <code>until_seq</code>와 <code>dataset_epoch</code>를 고정해 증분 수집합니다.</li><li>원본 CSV를 별도로 받은 경우에만 직원–업무영역 관계를 검증합니다.</li><li>같은 필터의 HTML과 API 결과에서 차량 ID와 가격을 대조합니다.</li></ol></section><section class="guide-section" aria-labelledby="section-13"><h2 id="section-13">13. 제출 전 체크리스트<a class="heading-anchor" href="#section-13" aria-label="13. 제출 전 체크리스트 바로가기">#</a></h2><ul class="checklist"><li class="check-item"><span class="check-box" aria-hidden="true"></span><span>제출물에 API 키 원문, <code>Authorization</code> 헤더, 쿠키, DB 연결 문자열이 없습니다.</span></li><li class="check-item"><span class="check-box" aria-hidden="true"></span><span>코드가 서버 주소와 API 키를 환경 변수에서 읽습니다.</span></li><li class="check-item"><span class="check-box" aria-hidden="true"></span><span>실제 사용한 경로, 필터, 수집 시각, HTTP 상태를 기록했습니다.</span></li><li class="check-item"><span class="check-box" aria-hidden="true"></span><span>HTML 수집기가 <code>a[rel=&quot;next&quot;]</code>로 종료하고 요청 사이에 1초를 기다립니다.</span></li><li class="check-item"><span class="check-box" aria-hidden="true"></span><span>JSON 목록 수집기가 <code>links.next</code>로 종료하며 각 요청에 인증 헤더를 보냅니다.</span></li><li class="check-item"><span class="check-box" aria-hidden="true"></span><span>전체 수집 결과에 <code>until_id</code>, <code>dataset_epoch</code>, 마지막 <code>after_id</code> 체크포인트가 있습니다.</span></li><li class="check-item"><span class="check-box" aria-hidden="true"></span><span>차량 저장과 체크포인트 갱신이 같은 트랜잭션이며 재실행 후 고유 차량 수가 불필요하게 증가하지 않습니다.</span></li><li class="check-item"><span class="check-box" aria-hidden="true"></span><span>증분 수집 결과에 첫 <code>until_seq</code>, 마지막 <code>seq</code>, <code>dataset_epoch</code>가 있습니다.</span></li><li class="check-item"><span class="check-box" aria-hidden="true"></span><span>빈 결과와 오류를 구분하고 <code>429</code>의 <code>Retry-After</code>를 준수합니다.</span></li><li class="check-item"><span class="check-box" aria-hidden="true"></span><span>원본 CSV를 사용했다면 직원 번호·원본 이름·입사일과 원본 행을 제출물에서 제거했습니다.</span></li><li class="check-item"><span class="check-box" aria-hidden="true"></span><span><code>AREA</code>를 실제 차량 소재지로 해석하지 않았습니다.</span></li></ul><p>더 상세한 필드·응답·오류 계약은 <span class="project-reference">API 문서(서버 실행 후 <code>서버 주소/docs</code>의 API 전체 계약)</span>, 전체 실습 코드와 관계 검증은 <span class="project-reference">학습 가이드(서버 실행 후 <code>서버 주소/learning-guide</code>의 전체 실습 예제)</span>를 참고하세요.</p></section></main>
+  </div>
+  <footer class="footer"><div class="shell footer__inner"><div><strong>AutoData Lab</strong><p>로컬 수업망에서 사용하는 합성 중고차 수집 실습 서버</p></div><a href="DEPLOYER_GUIDE.html">배포자용 설명서 보기 →</a></div></footer>
+  <div class="toast" role="status" aria-live="polite" data-toast></div>
+  <script>
+(() => {
+  "use strict";
+  const toast = document.querySelector("[data-toast]");
+  let toastTimer;
+  function announce(message) {
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add("is-visible");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 1600);
+  }
+  async function copyText(value) {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(value);
+        return;
+      } catch {
+        // file:// 또는 권한 제한 환경에서는 아래 선택 기반 복사를 시도합니다.
+      }
+    }
+    const area = document.createElement("textarea");
+    area.value = value;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.append(area);
+    area.select();
+    const copied = document.execCommand("copy");
+    area.remove();
+    if (!copied) throw new Error("copy failed");
+  }
+  document.querySelectorAll("[data-copy-code]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const code = button.closest("[data-code-block]")?.querySelector("code");
+      if (!code) return;
+      try {
+        await copyText(code.textContent || "");
+        announce("코드를 복사했습니다.");
+      } catch {
+        announce("복사할 수 없습니다. 코드를 직접 선택해 주세요.");
+      }
+    });
+  });
+  document.querySelectorAll("[data-wrap-code]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const figure = button.closest("[data-code-block]");
+      if (!figure) return;
+      const wrapped = figure.classList.toggle("is-wrapped");
+      button.setAttribute("aria-pressed", String(wrapped));
+    });
+  });
+  const tocLinks = [...document.querySelectorAll(".toc a[href^='#']")];
+  const headingById = new Map(tocLinks.map((link) => [link.hash.slice(1), link]));
+  if ("IntersectionObserver" in window) {
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (!visible) return;
+      tocLinks.forEach((link) => link.removeAttribute("aria-current"));
+      headingById.get(visible.target.id)?.setAttribute("aria-current", "location");
+    }, { rootMargin: "-15% 0px -75% 0px" });
+    document.querySelectorAll(".manual h2[id], .manual h3[id]").forEach((heading) => observer.observe(heading));
+  }
+})();
+</script>
+</body>
+</html>

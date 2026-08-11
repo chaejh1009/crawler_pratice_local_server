@@ -1,0 +1,26 @@
+{
+  "name": "autodata-used-car-classroom-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "중고차 HTML·인증 JSON API·CSV 관계 수집을 연습하는 교실용 서버",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "node --watch server/index.mjs",
+    "start": "node server/index.mjs",
+    "test": "node --test",
+    "check": "node --check server/index.mjs && node --check server/app.mjs && node --check server/repository.mjs && node --check server/data-generator.mjs && node --check server/sample-data.mjs && node --check server/templates.mjs && node --check server/api-keys.mjs && node --check server/csv-data.mjs && node --check scripts/seed.mjs && node --check scripts/generate-data.mjs && node --check scripts/run-generator.mjs && node --check scripts/create-api-key.mjs && node --check scripts/build-guide-html.mjs && node --check public/app.js",
+    "db:seed": "node scripts/seed.mjs",
+    "generate:once": "node scripts/generate-data.mjs",
+    "generate:watch": "node scripts/run-generator.mjs",
+    "api-key:create": "node scripts/create-api-key.mjs create",
+    "api-key:revoke": "node scripts/create-api-key.mjs revoke",
+    "docs:build": "node scripts/build-guide-html.mjs"
+  },
+  "dependencies": {
+    "mongodb": "^7.5.0",
+    "mysql2": "^3.14.4"
+  }
+}
