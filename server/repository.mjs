@@ -679,7 +679,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
       if (closed) return { ok: false, source: "mysql", error: "Repository is closed." };
       const startedAt = Date.now();
       try {
-        const [rows] = await pool.execute(
+        const [rows] = await pool.query(
           `SELECT ds.dataset_epoch AS datasetEpoch,
                   ds.status AS datasetStatus,
                   (SELECT COUNT(*) FROM generation_runs WHERE status <> 'SUCCESS') AS incompleteGenerationRunCount
@@ -702,7 +702,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
     },
     async getDatasetEpoch() {
       assertOpen();
-      const [rows] = await pool.execute(
+      const [rows] = await pool.query(
         "SELECT dataset_epoch AS datasetEpoch FROM dataset_state WHERE id = 1 AND status = 'READY' LIMIT 1",
       );
       if (!rows.length) throw new Error("dataset_state가 없습니다. db:seed를 다시 실행하세요.");
@@ -711,7 +711,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
     async getStats() {
       assertOpen();
       const [[rows], [stateRows]] = await Promise.all([
-        pool.execute(`SELECT
+        pool.query(`SELECT
         (SELECT COUNT(*) FROM vehicle_listings) AS carCount,
         (SELECT COUNT(*) FROM vehicle_listings WHERE status = 'AVAILABLE') AS availableCount,
         (SELECT COUNT(*) FROM vehicle_brands) AS brandCount,
@@ -726,7 +726,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
         (SELECT COALESCE(MAX(event_id), 0) FROM generation_run_events) AS latestGenerationRunEventId,
         (SELECT COALESCE(MAX(c.seq), 0) FROM listing_change_log c INNER JOIN generation_runs r ON r.id = c.run_id WHERE r.status = 'SUCCESS') AS latestChangeSeq,
         (SELECT MAX(c.occurred_at) FROM listing_change_log c INNER JOIN generation_runs r ON r.id = c.run_id WHERE r.status = 'SUCCESS') AS latestDataUpdatedAt`),
-        pool.execute("SELECT dataset_epoch AS datasetEpoch FROM dataset_state WHERE id = 1 AND status = 'READY' LIMIT 1"),
+        pool.query("SELECT dataset_epoch AS datasetEpoch FROM dataset_state WHERE id = 1 AND status = 'READY' LIMIT 1"),
       ]);
       if (!stateRows.length) throw new Error("dataset_state가 없습니다. db:seed를 다시 실행하세요.");
       return Object.fromEntries(Object.entries(rows[0])
@@ -739,7 +739,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
     },
     async listBrands() {
       assertOpen();
-      const [rows] = await pool.execute(`SELECT b.id, b.name, b.slug, b.country, COUNT(l.id) AS carCount
+      const [rows] = await pool.query(`SELECT b.id, b.name, b.slug, b.country, COUNT(l.id) AS carCount
         FROM vehicle_brands b LEFT JOIN vehicle_models m ON m.brand_id = b.id
         LEFT JOIN vehicle_listings l ON l.model_id = m.id
         GROUP BY b.id, b.name, b.slug, b.country ORDER BY b.id`);
@@ -747,7 +747,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
     },
     async listLocations() {
       assertOpen();
-      const [rows] = await pool.execute(`SELECT loc.id, loc.province, loc.city, loc.slug, COUNT(l.id) AS carCount
+      const [rows] = await pool.query(`SELECT loc.id, loc.province, loc.city, loc.slug, COUNT(l.id) AS carCount
         FROM locations loc LEFT JOIN vehicle_listings l ON l.location_id = loc.id
         GROUP BY loc.id, loc.province, loc.city, loc.slug ORDER BY loc.id`);
       return rows.map((row) => ({ ...row, id: Number(row.id), carCount: Number(row.carCount) }));
@@ -764,8 +764,8 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
       if (parentId) { conditions.push("a.parent_area_id = ?"); parameters.push(parentId); }
       const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
       const [countResult, listResult] = await Promise.all([
-        pool.execute(`SELECT COUNT(*) AS total FROM business_areas a ${where}`, parameters),
-        pool.execute(`SELECT a.area_id, a.area_name, a.parent_area_id, p.area_name AS parent_area_name,
+        pool.query(`SELECT COUNT(*) AS total FROM business_areas a ${where}`, parameters),
+        pool.query(`SELECT a.area_id, a.area_name, a.parent_area_id, p.area_name AS parent_area_name,
           a.registered_at, e.emp_no, e.emp_name, e.dept_name, e.position_name, e.is_active,
           COUNT(l.id) AS car_count
           FROM business_areas a LEFT JOIN business_areas p ON p.area_id = a.parent_area_id
@@ -824,10 +824,10 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
       if (query.accidentFree !== null) { conditions.push(query.accidentFree ? "l.accident_count = 0" : "l.accident_count > 0"); }
       const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
       const [countResult, listResult] = await Promise.all([
-        pool.execute(`SELECT COUNT(*) AS total FROM vehicle_listings l
+        pool.query(`SELECT COUNT(*) AS total FROM vehicle_listings l
           INNER JOIN vehicle_models m ON m.id = l.model_id INNER JOIN vehicle_brands b ON b.id = m.brand_id
           INNER JOIN locations loc ON loc.id = l.location_id${where}`, parameters),
-        pool.execute(`${CAR_SELECT}${where} ORDER BY ${SORT_SQL[query.sort]} LIMIT ? OFFSET ?`, [
+        pool.query(`${CAR_SELECT}${where} ORDER BY ${SORT_SQL[query.sort]} LIMIT ? OFFSET ?`, [
           ...parameters, query.pageSize, (query.page - 1) * query.pageSize,
         ]),
       ]);
@@ -835,7 +835,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
     },
     async getCarWatermark() {
       assertOpen();
-      const [rows] = await pool.execute("SELECT COALESCE(MAX(id), 0) AS watermark FROM vehicle_listings");
+      const [rows] = await pool.query("SELECT COALESCE(MAX(id), 0) AS watermark FROM vehicle_listings");
       return Number(rows[0].watermark);
     },
     async listCarsAfterId({ afterId = 0, untilId = Number.MAX_SAFE_INTEGER, limit = DEFAULT_CURSOR_LIMIT } = {}) {
@@ -852,7 +852,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
     },
     async getChangeWatermark() {
       assertOpen();
-      const [rows] = await pool.execute(`SELECT COALESCE(MAX(change_event.seq), 0) AS watermark
+      const [rows] = await pool.query(`SELECT COALESCE(MAX(change_event.seq), 0) AS watermark
         FROM listing_change_log change_event
         INNER JOIN generation_runs gr ON gr.id = change_event.run_id
         WHERE gr.status = 'SUCCESS'`);
@@ -872,7 +872,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
     },
     async getGenerationRunWatermark() {
       assertOpen();
-      const [rows] = await pool.execute("SELECT COALESCE(MAX(event_id), 0) AS watermark FROM generation_run_events");
+      const [rows] = await pool.query("SELECT COALESCE(MAX(event_id), 0) AS watermark FROM generation_run_events");
       return Number(rows[0].watermark);
     },
     async listGenerationRunsAfterId({ afterId = 0, untilId = Number.MAX_SAFE_INTEGER, limit = 100 } = {}) {
@@ -910,7 +910,7 @@ function createMysqlRepository(pool, dealerPublicIdSecret) {
         SELECT public_vehicle_listing.id
         FROM (SELECT id FROM vehicle_listings ORDER BY id DESC LIMIT ${datasetLimit}) AS public_vehicle_listing
       )`;
-      const [rows] = await pool.execute(`${CAR_SELECT} WHERE l.id = ?${publicBoundary} LIMIT 1`, [normalized]);
+      const [rows] = await pool.query(`${CAR_SELECT} WHERE l.id = ?${publicBoundary} LIMIT 1`, [normalized]);
       return rows.length ? mapMysqlCar(rows[0], normalizedDealerSecret) : null;
     },
     async close() { if (!closed) { closed = true; await pool.end(); } },
@@ -941,7 +941,7 @@ async function connectMysqlRepository(env, dealerPublicIdSecret) {
   const mysql = await import("mysql2/promise");
   const createPool = mysql.createPool ?? mysql.default?.createPool;
   const pool = createPool(mysqlConnectionOptions(env));
-  try { await pool.execute("SELECT 1 AS ok"); return createMysqlRepository(pool, dealerPublicIdSecret); }
+  try { await pool.query("SELECT 1 AS ok"); return createMysqlRepository(pool, dealerPublicIdSecret); }
   catch (error) { await pool.end().catch(() => {}); throw error; }
 }
 
